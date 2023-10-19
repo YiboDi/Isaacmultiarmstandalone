@@ -20,18 +20,45 @@ from gym import spaces
 import numpy as np
 import torch
 import math
+from tasks import TaskLoader
+from utils import load_config
+
+from omniisaacgymenvs.robots.articulations.franka import Franka
+from omniisaacgymenvs.robots.articulations.views.franka_view import FrankaView
 
 
-class CartpoleTask(BaseTask):
+class MultiarmTask(BaseTask):
     def __init__(self, name, offset=None) -> None:
+
+        self.config = load_config(path=/home/tp2/papers/decentralized-multiarm/configs/default.json)
+
+        self.taskloader = TaskLoader(root_dir=/home/tp2/papers/decentralized-multiarm/tasks, shuffle=True)
+        self.current_task = self.taskloader.get_next_task()
+
+
+        # trigger __init__ of parent class
+        BaseTask.__init__(self, name=name, offset=offset)
+
+    def init_task(self):
+
+        # task-specific parameters for multiagent
+        
 
         # task-specific parameters
         self._cartpole_position = [0.0, 0.0, 2.0]
         self._reset_dist = 3.0 #reset when cart is more than 3m away from start position
         self._max_push_effort = 400.0
 
+        #values used for defining RL buffers for multiagent and dynamic
+        self._num_observation = 0
+        for item in self.config['training']['observations']['items']:
+            self._num_observation += item['dimensions'] * (item['history'] + 1)
+
+        self._num_observations = self._num_observation * self.current_task.ur5_count
+        
+
         # values used for defining RL buffers
-        self._num_observations = 4
+        # self._num_observations = 4
         self._num_actions = 1
         self._device = "cpu"
         self.num_envs = 1
@@ -46,27 +73,44 @@ class CartpoleTask(BaseTask):
             np.ones(self._num_observations) * -np.Inf, np.ones(self._num_observations) * np.Inf
         ) #(-oo,+oo)
 
-        # trigger __init__ of parent class
-        BaseTask.__init__(self, name=name, offset=offset)
-
     def set_up_scene(self, scene) -> None:
-        # retrieve file path for the Cartpole USD file
-        assets_root_path = get_assets_root_path()
-        usd_path = assets_root_path + "/Isaac/Robots/Cartpole/cartpole.usd"
-        # add the Cartpole USD to our stage
-       
-        create_prim(prim_path="/World/Cartpole", prim_type="Xform", position=self._cartpole_position, usd_path=usd_path)
-        # add_reference_to_stage(usd_path, "/World/Cartpole")
-        
+
+        # eliminate all existing scene firstly
+        self.scene.remove_object()
+
+        self.num_agents=self.current_task.ur5_count
+
+        self.get_franka(self.num_agents)
+
+        self._franka_list=[]
+
+        for i in self.num_agents:
+            franka = ArticulationView(prim_paths_expr="/World/Franka/franka{}".format(i), name="franka{}_view".format(i))
+            scene.add(franka)
+            self._franka_list.append(franka)
         # create an ArticulationView wrapper for our cartpole - this can be extended towards accessing multiple cartpoles
-        self._cartpoles = ArticulationView(prim_paths_expr="/World/Cartpole*", name="cartpole_view")
-        # self._cartpoles = ArticulationView(prim_paths_expr="/World/envs/.*/Cartpole", name="cartpole_view", reset_xform_properties=False)
+        # self._franka = ArticulationView(prim_paths_expr="/World/Cartpole*", name="franka_view")
         # add Cartpole ArticulationView and ground plane to the Scene
-        scene.add(self._cartpoles)
+        # scene.add(self._franka)
         scene.add_default_ground_plane()
 
         # set default camera viewport position and target
         self.set_initial_camera_params()
+
+        self.init_task()
+
+    def get_franka(num_agents=1):
+        
+        # retrieve file path for the Cartpole USD file
+        assets_root_path = get_assets_root_path()
+        usd_path = assets_root_path + "/Isaac/Robots/Franka/franka.usd"
+        # add the Cartpole USD to our stage
+        for i in num_agents:
+           create_prim(prim_path="/World/Frankas/Franka{}".format(i), prim_type="Xform", position=self._cartpole_position, usd_path=usd_path) 
+
+       
+        # add_reference_to_stage(usd_path, "/World/Cartpole")
+
 
     def set_initial_camera_params(self, camera_position=[10, 10, 3], camera_target=[0, 0, 0]):
         set_camera_view(eye=camera_position, target=camera_target, camera_prim_path="/OmniverseKit_Persp")
@@ -157,5 +201,7 @@ class CartpoleTask(BaseTask):
         # resets = torch.where(self.progress_buf >= self._max_episode_length, 1, resets)
 
         self.resets = resets
+        self.current_task = self.taskloader.get_next_task
+        self.set_up_scene()
 
         return resets.item()

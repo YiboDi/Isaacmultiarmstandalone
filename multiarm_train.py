@@ -14,9 +14,12 @@ from omni.isaac.gym.vec_env import VecEnvBase
 env = VecEnvBase(headless=False)
 
 # create task and register task
-from cartpole_task import CartpoleTask
+from multiarm_task import MultiarmTask
 
-task = CartpoleTask(name="Cartpole")
+# from utils import load_config
+
+# config = load_config()
+task = MultiarmTask(name="Cartpole")
 env.set_task(task, backend="torch")
 
 # import stable baselines
