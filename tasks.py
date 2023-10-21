@@ -129,11 +129,11 @@ class Task:
             print(task_path)
             print(e)
             return None
+
         return Task(
             start_config=task_file['start_config'],
             base_poses=task_file['base_poses'],
             goal_config=task_file['goal_config'],
-            ur5_count=task_file['ur5_count']
             start_goal_config=None
             if 'start_goal_config' not in task_file
             else task_file['start_goal_config'],

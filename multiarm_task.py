@@ -30,9 +30,9 @@ from omniisaacgymenvs.robots.articulations.views.franka_view import FrankaView
 class MultiarmTask(BaseTask):
     def __init__(self, name, offset=None) -> None:
 
-        self.config = load_config(path=/home/tp2/papers/decentralized-multiarm/configs/default.json)
+        self.config = load_config(path='/home/tp2/papers/decentralized-multiarm/configs/default.json')
 
-        self.taskloader = TaskLoader(root_dir=/home/tp2/papers/decentralized-multiarm/tasks, shuffle=True)
+        self.taskloader = TaskLoader(root_dir='/home/tp2/papers/decentralized-multiarm/tasks', shuffle=True)
         self.current_task = self.taskloader.get_next_task()
 
 
@@ -50,7 +50,7 @@ class MultiarmTask(BaseTask):
         self._max_push_effort = 400.0
 
         #values used for defining RL buffers for multiagent and dynamic
-        self._num_observation = 0
+        self._num_observation = 0 
         for item in self.config['training']['observations']['items']:
             self._num_observation += item['dimensions'] * (item['history'] + 1)
 
@@ -64,8 +64,10 @@ class MultiarmTask(BaseTask):
         self.num_envs = 1
 
         # a few class buffers to store RL-related states
-        self.obs = torch.zeros((self.num_envs, self._num_observations))
-        self.resets = torch.zeros((self.num_envs, 1))
+        # self.obs = torch.zeros((self.num_envs, self._num_observations))
+        self.obs = torch.zeros((self.num_agents, self._num_observation))
+        # self.resets = torch.zeros((self.num_envs, 1))
+        self.resets = torch.zeros((1))
 
         # set the action and observation space for RL
         self.action_space = spaces.Box(np.ones(self._num_actions) * -1.0, np.ones(self._num_actions) * 1.0)  #[-1, +1]
@@ -76,7 +78,7 @@ class MultiarmTask(BaseTask):
     def set_up_scene(self, scene) -> None:
 
         # eliminate all existing scene firstly
-        self.scene.remove_object()
+        self.scene.clear()
 
         self.num_agents=self.current_task.ur5_count
 
@@ -99,7 +101,7 @@ class MultiarmTask(BaseTask):
 
         self.init_task()
 
-    def get_franka(num_agents=1):
+    def get_franka(self, num_agents=1):
         
         # retrieve file path for the Cartpole USD file
         assets_root_path = get_assets_root_path()
@@ -127,20 +129,26 @@ class MultiarmTask(BaseTask):
             env_ids = torch.arange(self.num_envs, device=self._device)
         num_resets = len(env_ids)
 
-        # randomize DOF positions
-        dof_pos = torch.zeros((num_resets, self._cartpoles.num_dof), device=self._device)
-        dof_pos[:, self._cart_dof_idx] = 1.0 * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
-        dof_pos[:, self._pole_dof_idx] = 0.125 * math.pi * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
+        self.current_task = self.taskloader.get_next_task()
+        self.set_up_scene()
 
-        # randomize DOF velocities
-        dof_vel = torch.zeros((num_resets, self._cartpoles.num_dof), device=self._device)
-        dof_vel[:, self._cart_dof_idx] = 0.5 * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
-        dof_vel[:, self._pole_dof_idx] = 0.25 * math.pi * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
+        # # randomize DOF positions
+        # dof_pos = torch.zeros((num_resets, self._cartpoles.num_dof), device=self._device)
+        # dof_pos[:, self._cart_dof_idx] = 1.0 * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
+        # dof_pos[:, self._pole_dof_idx] = 0.125 * math.pi * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
+
+        # # randomize DOF velocities
+        # dof_vel = torch.zeros((num_resets, self._cartpoles.num_dof), device=self._device)
+        # dof_vel[:, self._cart_dof_idx] = 0.5 * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
+        # dof_vel[:, self._pole_dof_idx] = 0.25 * math.pi * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
 
         # apply resets
         indices = env_ids.to(dtype=torch.int32)
-        self._cartpoles.set_joint_positions(dof_pos, indices=indices)
-        self._cartpoles.set_joint_velocities(dof_vel, indices=indices)
+        # self._cartpoles.set_joint_positions(dof_pos, indices=indices)
+        # self._cartpoles.set_joint_velocities(dof_vel, indices=indices)
+        for i, agent in enumerate(self._franka_list):
+            
+
 
         # bookkeeping
         self.resets[env_ids] = 0
@@ -159,19 +167,19 @@ class MultiarmTask(BaseTask):
         self._cartpoles.set_joint_efforts(forces, indices=indices)
 
     def get_observations(self):
-        dof_pos = self._cartpoles.get_joint_positions()
-        dof_vel = self._cartpoles.get_joint_velocities()
+        # self.obs = torch.zeros((self.num_envs, self.num_agents, self._num_observation))
+        # do not consider multi env temporally
+        
 
-        # collect pole and cart joint positions and velocities for observation
-        cart_pos = dof_pos[:, self._cart_dof_idx]
-        cart_vel = dof_vel[:, self._cart_dof_idx]
-        pole_pos = dof_pos[:, self._pole_dof_idx]
-        pole_vel = dof_vel[:, self._pole_dof_idx]
+        for i, agent in enumerate(self._franka_list):
+            dof_pos = agent.get_joint_positions()
+            dof_vel = agent.get_joint_velocities()
 
-        self.obs[:, 0] = cart_pos
-        self.obs[:, 1] = cart_vel
-        self.obs[:, 2] = pole_pos
-        self.obs[:, 3] = pole_vel
+            if dof_pos.shape[0]+dof_vel.shape[0] != self._num_observation:
+                raise ValueError('dim of observation does not match')
+            
+            self.obs[i,:] = torch.cat(dof_pos, dof_vel)
+
 
         return self.obs
 
@@ -201,7 +209,6 @@ class MultiarmTask(BaseTask):
         # resets = torch.where(self.progress_buf >= self._max_episode_length, 1, resets)
 
         self.resets = resets
-        self.current_task = self.taskloader.get_next_task
-        self.set_up_scene()
+
 
         return resets.item()
