@@ -19,29 +19,32 @@ from multiarm_task import MultiarmTask
 # from utils import load_config
 
 # config = load_config()
-task = MultiarmTask(name="Cartpole")
+task = MultiarmTask(name="Cartpole", env = env)
 env.set_task(task, backend="torch")
 
 # import stable baselines
-from stable_baselines3 import PPO
+# from stable_baselines3 import PPO
 
 # create agent from stable baselines
-model = PPO(
-    "MlpPolicy",
-    env,
-    n_steps=1000,
-    batch_size=1000,
-    n_epochs=20,
-    learning_rate=0.001,
-    gamma=0.99,
-    device="cuda:0",
-    ent_coef=0.0,
-    vf_coef=0.5,
-    max_grad_norm=1.0,
-    verbose=1,
-    tensorboard_log="./cartpole_tensorboard",
-)
-model.learn(total_timesteps=10000)
-model.save("ppo_cartpole")
+# model = PPO(
+#     "MlpPolicy",
+#     env,
+#     n_steps=1000,
+#     batch_size=1000,
+#     n_epochs=20,
+#     learning_rate=0.001,
+#     gamma=0.99,
+#     device="cuda:0",
+#     ent_coef=0.0,
+#     vf_coef=0.5,
+#     max_grad_norm=1.0,
+#     verbose=1,
+#     tensorboard_log="./cartpole_tensorboard",
+# )
+# model.learn(total_timesteps=10000)
+# model.save("ppo_cartpole")
 
-env.close()
+# env.close()
+
+if __name__ == "__main__":
+    sac
