@@ -6,7 +6,7 @@ from random import shuffle as shuffle_f
 import ray
 from os.path import basename, exists
 from numpy.linalg import norm
-from .utils import Target
+# from .utils import Target
 from time import sleep
 from decimal import Decimal
 from itertools import product
