@@ -77,6 +77,8 @@ class MultiarmTask(BaseTask):
         self.observation_space = None
         self.action_space = None
 
+        self._max_episode_length = 1500
+
 
         # trigger __init__ of parent class
         BaseTask.__init__(self, name=name, offset=offset)
@@ -111,14 +113,21 @@ class MultiarmTask(BaseTask):
         self.resets = torch.zeros((1))
 
         # set the action and observation space for RL
-        self.action_space = spaces.Box(np.ones(self._num_actions) * -1.0, np.ones(self._num_actions) * 1.0)  #[-1, +1]
-        self.observation_space = spaces.Box(
-            np.ones(self._num_observations) * -np.Inf, np.ones(self._num_observations) * np.Inf
-        ) #(-oo,+oo)
+        # self.action_space = spaces.Box(np.ones(self._num_actions) * -1.0, np.ones(self._num_actions) * 1.0)  #[-1, +1]
+        # self.observation_space = spaces.Box(
+        #     np.ones(self._num_observations) * -np.Inf, np.ones(self._num_observations) * np.Inf
+        # ) #(-oo,+oo)
+        self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_agents, self._num_action))
+        self.observation_space = spaces.Box(low=-np.Inf, high=np.Inf, shape=(self.num_agents, self._num_observation))
 
         stage = get_current_stage()
 
-        self.actions = torch.zeros((self._num_envs, self.num_agents, self._num_actions), device=self._device)
+        self.actions = torch.zeros((self.num_agents, self._num_action), device=self._device)
+
+        self.franka_dof_targets = torch.tensor(self.current_task.start_config, device=self._device)
+
+        # dof_limits = self._franka_list[0].get_dof_limits()
+        # self.franka_dof_lower_limits = dof_limits[0, :, 0].to(device=self._device)
 
 
 
@@ -133,40 +142,29 @@ class MultiarmTask(BaseTask):
         self.get_franka(self.num_agents)
 
         self._franka_list=[]
-        # self.ee_list = []
-        # self.targets_list = []
+
         # usd_path = "/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/assets/ur5/ur5.usd"
 
         for i in range(4):
 
-            if self.current_task.target_eff_poses[i][0] is not None:
+            if i < self.num_agents:
                 franka = UR5View(prim_paths_expr="/World/Franka/franka{}".format(i), name="franka{}_view".format(i),
                                 target_pos = self.current_task.target_eff_poses[i][0],
                                 target_ori = self.current_task.target_eff_poses[i][1]
                                 )
-                scene.add(franka)
-                self._franka_list.append(franka)
 
             # add the following variable in UR5View init
-            # self._franka_list[-1].
-                self._franka_list[-1].target_eff_pose = self.current_task.target_eff_poses[i] # shape of num_agents*(translation3+orientation4), precisely a list of num_agents * [3.4]
-                self._franka_list[-1].goal_config = self.current_task.goal_config[i] # goal joint states, shape same with above
+                # self._franka_list[-1].target_eff_pose = self.current_task.target_eff_poses[i] # shape of num_agents*(translation3+orientation4), precisely a list of num_agents * [3.4]
+                # self._franka_list[-1].goal_config = self.current_task.goal_config[i] # goal joint states, shape same with above
 
-            # self._franka_list[-1].ee = scene.add(VisualCylinder(prim_path='/World/Franka/franka{}/ee_link/point'.format(i), radius=0.02, height=0.1))
-            
-            # self._franka_list[-1].target = scene.add(VisualCylinder(prim_path='World/Franka/franka/target', radius=0.02, height=0.1, color=[0.8, 0.8, 0.8],
-            #                                   translation = self.current_task.target_eff_poses[i,0:3],
-            #                                   orientation = self.current_task.target_eff_poses[i,3:7]))
-            
-            # scene.add(self.ee)
-            # scene.add(self.target)
-            elif self.current_task.target_eff_poses[i][0] is None:
+            elif i >= self.num_agents:
                 franka = UR5View(prim_paths_expr="/World/Franka/franka{}".format(i), name="franka{}_view".format(i),
-                                # target_pos = self.current_task.target_eff_poses[i][0],
-                                # target_ori = self.current_task.target_eff_poses[i][1]
                                 )
-                scene.add(franka)
 
+        scene.add(franka)
+        scene.add(franka.ee)
+        scene.add(franka.target)
+        self._franka_list.append(franka)
         scene.add_default_ground_plane()
         
 
@@ -187,7 +185,7 @@ class MultiarmTask(BaseTask):
         usd_path = "/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/assets/ur5/ur5.usd"
 
         for i in range(4):
-            if self.current_task.base_poses[i][0] is not None:
+            if i < self.num_agents:
                 position = self.current_task.base_poses[i][0]
                 orientation = self.current_task.base_poses[i][1]
                 default_dof_pos = self.current_task.start_config[i]
@@ -207,7 +205,7 @@ class MultiarmTask(BaseTask):
                         translation=Gf.Vec3f(0, 0, 0),
                         visualize=True,)
                 
-            elif self.current_task.base_poses[i][0] is None:
+            elif i >= self.num_agents:
                 UR5(prim_path="/World/Franka/franka{}".format(i), translation=[0, 0, -10], 
                 #    orientation=orientation, 
                    usd_path=usd_path, 
@@ -224,90 +222,48 @@ class MultiarmTask(BaseTask):
         self.current_task = self.taskloader.get_next_task()
         # self.set_up_scene()
         self.num_agents=self.current_task.ur5_count
-        self.base_poses = self.current_task.base_poses
-        self.start_config = self.current_task.start_config
-        self.goal_config = self.current_task.goal_config
-        self.target_eff_poses = self.current_task.target_eff_poses
+
+        base_poses = self.current_task.base_poses
+        start_config = self.current_task.start_config
+        # goal_config = self.current_task.goal_config
+        target_eff_poses = self.current_task.target_eff_poses
 
         self._num_observations = self._num_observation * self.current_task.ur5_count
         self._num_actions = self._num_action * self.current_task.ur5_count
 
+        self.obs = torch.zeros((self.num_agents, self.num_agents, self._num_observation))
+        self.actions = torch.zeros((self.num_agents, self._num_action), device=self._device)
 
-        # self.num_franka_dofs = self._franka_list[0].num_dof
-        self.num_franka_dofs = 6
-        self.franka_dof_pos = torch.zeros((self.num_agents, self.num_franka_dofs), device=self._device)
-        dof_limits = self._franka_list[0].get_dof_limits()
-        self.franka_dof_lower_limits = dof_limits[0, :, 0].to(device=self._device)
-        self.franka_dof_upper_limits = dof_limits[0, :, 1].to(device=self._device)
-        self.franka_dof_speed_scales = torch.ones_like(self.franka_dof_lower_limits)
-        self.franka_dof_speed_scales[-1] = 0.1
-        self.franka_dof_targets = torch.zeros(
-            (self.num_agents, self.num_franka_dofs), dtype=torch.float, device=self._device
-        )
+        # reset the action and observation space for RL
+        # self.action_space = spaces.Box(np.ones(self._num_actions) * -1.0, np.ones(self._num_actions) * 1.0)  #[-1, +1]
+        # self.observation_space = spaces.Box(
+        #     np.ones(self._num_observations) * -np.Inf, np.ones(self._num_observations) * np.Inf
+        # ) #(-oo,+oo)
+        self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_agents, self._num_action))
+        self.observation_space = spaces.Box(low=-np.Inf, high=np.Inf, shape=(self.num_agents, self._num_observation))
 
-        self.franka_dof_targets = self.franka_dof_pos
+        self.num_franka_dofs = 6 # same to self.num_action
+
+        self.franka_dof_targets = torch.tensor(start_config, dtype=torch.float, device=self._device)
         # dof_vel = torch.zeros((self.num_agents, self._franka_list[0].num_dof), device=self._device)
         dof_vel = torch.zeros((self.num_agents, self.num_franka_dofs), device=self._device)
 
         for i, agent in enumerate(self._franka_list):
             if i < self.num_agents:
-                self._franka_list[i].set_world_poses(self.base_poses[i])
-                self._franka_list[i].set_joint_position_targets(self.start_config[i])
-                self._franka_list[i].set_joint_positions(self.start_config[i])
+                self._franka_list[i].set_world_poses(base_poses[i])
+                self._franka_list[i].set_joint_position_targets(start_config[i])
+                self._franka_list[i].set_joint_positions(start_config[i])
                 self._franka_list[i].set_joint_velocities(dof_vel[i])
 
-                self._franka_list[i].target.set_world_poses(self.target_eff_poses[i])
+                self._franka_list[i].target.set_world_poses(target_eff_poses[i])
 
             elif i >= self.num_agents:
                 self._franka_list[i].set_world_poses([0,0,-10])
 
+                self._franka_list[i].target.set_world_poses([0,0,-10])
+
         self.progress_buf = 0
 
-    # def post_reset(self):
-
-    #     self.current_task = self.taskloader.get_next_task()
-    #     self.set_up_scene()
-
-    #     # self.num_franka_dofs = self._franka_list[0].num_dof
-    #     self.num_franka_dofs = 6
-    #     self.franka_dof_pos = torch.zeros((self.num_agents, self.num_franka_dofs), device=self._device)
-    #     dof_limits = self._franka_list[0].get_dof_limits()
-    #     self.franka_dof_lower_limits = dof_limits[0, :, 0].to(device=self._device)
-    #     self.franka_dof_upper_limits = dof_limits[0, :, 1].to(device=self._device)
-    #     self.franka_dof_speed_scales = torch.ones_like(self.franka_dof_lower_limits)
-    #     self.franka_dof_speed_scales[-1] = 0.1
-    #     self.franka_dof_targets = torch.zeros(
-    #         (self.num_agents, self.num_franka_dofs), dtype=torch.float, device=self._device
-    #     )
-
-    #     self.reset()
-
-    # def reset(self, env_ids=None): # env.reset() -> self._task.reset() here
-    #     if env_ids is None:
-    #         env_ids = torch.arange(self._num_envs, device=self._device)
-    #     num_resets = len(env_ids)
-
-    #     self.franka_dof_targets = self.franka_dof_pos
-    #     # dof_vel = torch.zeros((self.num_agents, self._franka_list[0].num_dof), device=self._device)
-    #     dof_vel = torch.zeros((self.num_agents, self.num_franka_dofs), device=self._device)
-
-    #     for i, agent in enumerate(self._franka_list):
-    #         self._franka_list[i].set_joint_position_targets(self.franka_dof_targets[i, :], indices=indices)
-    #         self._franka_list[i].set_joint_positions(self.franka_dof_pos[i, :], indices=indices)
-    #         self._franka_list[i].set_joint_velocities(dof_vel[i, :], indices=indices)
-
-    #     # # randomize DOF positions
-    #     # dof_pos = torch.zeros((num_resets, self._cartpoles.num_dof), device=self._device)
-    #     # dof_pos[:, self._cart_dof_idx] = 1.0 * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
-    #     # dof_pos[:, self._pole_dof_idx] = 0.125 * math.pi * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
-
-    #     # # randomize DOF velocities
-    #     # dof_vel = torch.zeros((num_resets, self._cartpoles.num_dof), device=self._device)
-    #     # dof_vel[:, self._cart_dof_idx] = 0.5 * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
-    #     # dof_vel[:, self._pole_dof_idx] = 0.25 * math.pi * (1.0 - 2.0 * torch.rand(num_resets, device=self._device))
-
-    #     # apply resets
-    #     indices = env_ids.to(dtype=torch.int32)
             
     #     # bookkeeping
     #     self.resets[env_ids] = 0 # self.resets = 0
@@ -320,12 +276,12 @@ class MultiarmTask(BaseTask):
 
         actions = torch.tensor(actions)
         self.actions = actions.clone().to(self._device)
-
-        targets = self.franka_dof_targets + self.franka_dof_speed_scales * self.dt * self.actions * self.action_scale
-        self.franka_dof_targets[:] = tensor_clamp(targets, self.franka_dof_lower_limits, self.franka_dof_upper_limits)
-
+        # self.franka_dof_speed_scales = torch.ones_like(self.franka_dof_lower_limits)
+        # targets = self.franka_dof_targets + self.franka_dof_speed_scales * self.dt * self.actions * self.action_scale
+        # self.franka_dof_targets[:] = tensor_clamp(targets, self.franka_dof_lower_limits, self.franka_dof_upper_limits)
+        self.franka_dof_targets[:] = self.franka_dof_targets + self.dt * self.actions * self.action_scale # shape of self.num_agents*self.num_action
         for i, agent in enumerate(self._franka_list):
-            self._franka_list[i].set_joint_position_targets(self.franka_dof_targets[i, :])
+            self._franka_list[i].set_joint_position_targets(self.franka_dof_targets[i, :]) 
 
         self.progress_buf += 1
 
@@ -337,20 +293,25 @@ class MultiarmTask(BaseTask):
         # self._cartpoles.set_joint_efforts(forces, indices=indices)
 
     def get_observation(self, this_franka):
-        pos = np.array(this_franka.get_world_poses()) # the base position of this_franka
-        sorted_franka_list = self._franka_list.sort(reverse=True, key=lambda agent:
-                                                    np.linalg.norm(pos - np.array(agent.get_world_poses()[0]))) # or without [0] or [0:3]
+        pos = np.array(this_franka.get_world_poses()[0]) # the base position of this_franka
+        sorted_franka_list = sorted(self._franka_list[:self.num_agents], reverse=True, key=lambda agent: 
+                                    np.linalg.norm(pos - np.array(agent.get_world_poses()[0]))) # get_world_poses() should return tensor with two element: position and orientation
         for i, agent in enumerate(sorted_franka_list):
             dof_pos = agent.get_joint_positions()
-            ee_pos, ee_rot = agent.ee.get_world_poses()
-            target_eff_pose = agent.target_eff_pose
+            ee_pos, ee_rot = agent.ee.get_world_pose()
+            target_eff_pose = agent.target.get_world_pose()
+            target_eff_pose = torch.tensor(np.concatenate(target_eff_pose))
+            target_eff_pose = torch.cat([target_eff_pose, target_eff_pose]) # observation contains historical frame of 
             # goal_config = agent.goal_config
 
             # link position is the center of mass, for simplification using pos of links here
-            link_position = agent.get_link_positions() # get link positions of links, 30 for ur5, why 30? reason: 10*3
-            
+            link_position = agent.get_link_positions() # get link positions of links, 30 for ur5, why 30? reason: 10links*3xyz
+
             base_pose = agent.get_world_poses() # get the position of the base
-            if self.ob == torch.zeros((self.num_agents, self._num_observation)): # if first step (no history yet)
+            base_pose = torch.cat(base_pose, dim=-1).squeeze()
+
+            if self.progress_buf == 1:
+            # if self.ob == torch.zeros((self.num_agents, self._num_observation)): # if first step (no history yet)
                 self.ob[i, 0:6] = dof_pos
                 self.ob[i, 6:12] = dof_pos
                 self.ob[i, 12:15] = ee_pos
@@ -385,8 +346,9 @@ class MultiarmTask(BaseTask):
 
 
         for i, agent in enumerate(self._franka_list):
+            for i in range(self.num_agents):
             
-            self.obs[i, :, :] = self.get_observation(this_franka=agent)
+                self.obs[i, :, :] = self.get_observation(this_franka=agent)
 
 
             # hand_pos, hand_rot = agent._hands.get_world_poses()
@@ -414,34 +376,28 @@ class MultiarmTask(BaseTask):
         #                 return True # Collision detected with some part of the robot
         #             if "franka" in str(self._contact_sensor_interface.decode_body_name(reading["body0"])):
         #                 return True # Collision detected with some part of the robot
-        raw_readings = self._contact_sensor_interface.get_sensor_reading(agent.prim_path + '/sensor')
+        
+        raw_readings = self._contact_sensor_interface.get_sensor_readings(agent.prim_path + '/sensor')
         if raw_readings[-1] == 0:
             return 0
         else:
             return 1
 
-    
-    # def all_reach_targets(self):
-    #     for i, agent in enumerate(self._franka_list):
-    #         pos_delta = np.linalg.norm(agent.get_world_pose()[0:3] - self.current_task.target_eff_poses[i, 0])
-    #         ori_delat = np.linalg.norm(agent.get_world_pose()[3:7] - self.current_task.target_eff_poses[i, 1])
-    #         if pos_delta > self.position_tolerance or ori_delat > self.orientation_tolerance:
-    #             return 0
 
-    #     return 1
 
     def all_reach_targets(self):
         for i, agent in enumerate(self._franka_list):
-            pos_delta = np.linalg.norm(agent.ee_link.get_world_pose()[0:3] - self.agent.target_eff_poses[0:3])
-            ori_delat = np.linalg.norm(agent.ee_link.get_world_pose()[3:7] - self.agent.target_eff_poses[3:7])
-            if pos_delta > self.position_tolerance or ori_delat > self.orientation_tolerance:
-                return 0
+            for i in range(self.num_agents):
+                pos_delta = np.linalg.norm(agent.ee_link.get_world_pose()[0:3] - agent.target.get_world_pose[0:3])
+                ori_delat = np.linalg.norm(agent.ee_link.get_world_pose()[3:7] - agent.target.get_world_pose[3:7])
+                if pos_delta > self.position_tolerance or ori_delat > self.orientation_tolerance:
+                    return 0
 
         return 1
     
     def indiv_reach_targets(self, agent):
-        pos_delta = np.linalg.norm(agent.ee_link.get_world_pose()[0:3] - self.agent.target_eff_poses[0:3])
-        ori_delat = np.linalg.norm(agent.ee_link.get_world_pose()[3:7] - self.agent.target_eff_poses[3:7])
+        pos_delta = np.linalg.norm(agent.ee_link.get_world_pose()[0:3] - agent.target.get_world_pose[0:3])
+        ori_delat = np.linalg.norm(agent.ee_link.get_world_pose()[3:7] - agent.target.get_world_pose[3:7])
         if pos_delta < self.position_tolerance and ori_delat < self.orientation_tolerance:
             return 1
         else:
@@ -449,22 +405,10 @@ class MultiarmTask(BaseTask):
 
 
     def calculate_metrics(self) -> None:
-        cart_pos = self.obs[:, 0]
-        cart_vel = self.obs[:, 1]
-        pole_angle = self.obs[:, 2]
-        pole_vel = self.obs[:, 3]
 
-        # compute reward based on angle of pole and cart velocity
-        reward = 1.0 - pole_angle * pole_angle - 0.01 * torch.abs(cart_vel) - 0.005 * torch.abs(pole_vel)
-        # apply a penalty if cart is too far from center
-        reward = torch.where(torch.abs(cart_pos) > self._reset_dist, torch.ones_like(reward) * -2.0, reward)
-        # apply a penalty if pole is too far from upright
-        reward = torch.where(torch.abs(pole_angle) > np.pi / 2, torch.ones_like(reward) * -2.0, reward)
-
-
-        current_ur5_ee_residuals = self.get_ur5_eef_residuals()
-        if self.prev_ur5_ee_residuals is None:
-            self.prev_ur5_ee_residuals = current_ur5_ee_residuals
+        # current_ur5_ee_residuals = self.get_ur5_eef_residuals()
+        # if self.prev_ur5_ee_residuals is None:
+        #     self.prev_ur5_ee_residuals = current_ur5_ee_residuals
 
 
         # collision_penalties = np.array([
@@ -476,12 +420,13 @@ class MultiarmTask(BaseTask):
         collision_penalties = np.zeros(self.num_agents)
         for i, agent in enumerate(self._franka_list):
             # collision_check[i] = self.check_collision(agent=agent) 
-            if self.check_collision(agent=agent) == 1:
-                collision_penalties[i] = self.collision_penalty
-            elif self.check_collision(agent=agent) == 0:
-                collision_penalties[i] = 0
-            else:
-                raise ValueError('The reading of the contact sensor makes no sense')
+            if i < self.num_agents:
+                if self.check_collision(agent=agent) == 1:
+                    collision_penalties[i] = self.collision_penalty
+                elif self.check_collision(agent=agent) == 0:
+                    collision_penalties[i] = 0
+                else:
+                    raise ValueError('The reading of the contact sensor makes no sense')
 
 
         # individually_reached_target_rewards = np.array([
@@ -492,12 +437,13 @@ class MultiarmTask(BaseTask):
         # ])
         indiv_reach_target_rewards = np.zeros(self.num_agents)
         for i, agent in enumerate(self._franka_list):
-            if self.indiv_reach_targets(agent=agent):
-                indiv_reach_target_rewards[i] = self.indiv_reach_target_reward
-            elif self.indiv_reach_targets(agent=agent) == 0:
-                indiv_reach_target_rewards[i] = 0
-            else:
-                raise ValueError('The agent should either reach its target or not')
+            if i < self.num_agents:
+                if self.indiv_reach_targets(agent=agent):
+                    indiv_reach_target_rewards[i] = self.indiv_reach_target_reward
+                elif self.indiv_reach_targets(agent=agent) == 0:
+                    indiv_reach_target_rewards[i] = 0
+                else:
+                    raise ValueError('The agent should either reach its target or not')
 
         
         # Only give delta rewards if ee is within a radius
@@ -554,7 +500,12 @@ class MultiarmTask(BaseTask):
 
         # resets = torch.where(self.check_collision(), torch.ones_like(self.resets), self.resets)
         # resets = torch.where(self.progress_buf >= self.episode_length - 1, torch.ones_like(self.resets), self.resets)
-        resets = torch.where(self.check_collision(), 1, resets)
+        
+        # resets = torch.where(self.check_collision(), 1, resets)
+        for i,agent in enumerate(self._franka_list):
+            if i < self.num_agents:
+                if self.check_collision(agent=agent):
+                    resets = 1
         resets = torch.where(self.progress_buf >= self._max_episode_length, 1, resets)
 
         self.resets = resets

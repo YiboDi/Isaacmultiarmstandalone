@@ -80,8 +80,9 @@ if __name__ == "__main__":
         for i, agent in enumerate(ur5_list):
             # print(str(agent.ee_link.get_coms()))
             # print(str(agent.ee_link.get_world_poses()))
-            link_pos = agent.get_link_positions()
-            print(str(link_pos))
+            # link_pos = agent.get_link_positions()
+            # contact = agent.get_contact_force_data()
+            # print(str(contact))
 
         # print(str(pos))
         # print(str(pos[0] - np.array([1,1,1])))

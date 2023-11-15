@@ -18,11 +18,11 @@ env.set_task(task, backend="torch")
 num_episodes = 10  # Define the number of episodes for testing
 
 for episode in range(num_episodes):
-    observation, action = env.reset()
+    # observation, action = env.reset()
     done = False
     while not done:
         # Select a random action
-        action = env.action_space.sample()
+        action = env.action_space.sample() # need to reshape the action to num_agents * 6
 
         # Step through the environment
         observation, reward, done, info = env.step(action)

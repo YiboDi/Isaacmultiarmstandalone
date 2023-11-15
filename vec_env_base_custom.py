@@ -88,14 +88,17 @@ class VecEnvBase(gym.Env):
         self._task = task
         # self._num_envs = self._task.num_envs
 
-        self.observation_space = self._task.observation_space
-        self.action_space = self._task.action_space
+        # self.observation_space = self._task.observation_space
+        # self.action_space = self._task.action_space
 
         if sim_params and "enable_viewport" in sim_params:
             self._render = sim_params["enable_viewport"]
 
         if init_sim:
             self._world.reset()
+
+        self.observation_space = self._task.observation_space
+        self.action_space = self._task.action_space
 
     def render(self, mode="human") -> None:
         """ Step the renderer.
@@ -165,8 +168,11 @@ class VecEnvBase(gym.Env):
         print(f"[{now}] Running RL reset")
 
         self._task.reset()
-        self._world.reset()
         self._world.step(render=self._render)
+
+        self.observation_space = self._task.observation_space
+        self.action_space = self._task.action_space
+
         observations = self._task.get_observations()
         actions = torch.zero((self._task._num_actions)) # reset the shape of actions 
         
