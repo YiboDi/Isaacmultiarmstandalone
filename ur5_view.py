@@ -31,7 +31,7 @@ class UR5View(ArticulationView):
         self.wrist_1_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_1_link", track_contact_forces=True)
         self.wrist_2_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_2_link", track_contact_forces=True)
         self.wrist_3_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_3_link", track_contact_forces=True)
-        self.ee_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/ee_link")
+        self.ee_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/ee_link", track_contact_forces=True)
         self.tool0 = RigidPrimView(prim_paths_expr = prim_paths_expr + "/tool0")
         self.world = RigidPrimView(prim_paths_expr = prim_paths_expr + "/world")
 
@@ -46,6 +46,14 @@ class UR5View(ArticulationView):
                           self.tool0,
                           self.world
                           ]
+        
+        self.link_for_contact = [self.shoulder_link,
+                          self.upper_arm_link,
+                          self.forearm_link,
+                          self.wrist_1_link,
+                          self.wrist_2_link,
+                          self.wrist_3_link,
+                          self.ee_link]
         
         self.ee = VisualCylinder(prim_path=prim_paths_expr + "/ee_link/ee", radius=0.02, height=0.1, name=name + 'EE')
         self.target = VisualCylinder(prim_path=prim_paths_expr + "/target", radius=0.02, height=0.1,

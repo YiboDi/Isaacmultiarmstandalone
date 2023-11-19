@@ -15,10 +15,13 @@ task = MultiarmTask(name="Multiarm")
 env.set_task(task, backend="torch")
 
 
-num_episodes = 10  # Define the number of episodes for testing
+num_episodes = 100  # Define the number of episodes for testing
 
 for episode in range(num_episodes):
     # observation, action = env.reset()
+    if episode > 0:
+        # observation, action = env.reset()
+        env.reset()
     done = False
     while not done:
         # Select a random action

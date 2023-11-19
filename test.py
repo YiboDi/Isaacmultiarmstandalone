@@ -16,6 +16,7 @@ from omni.isaac.core.articulations import ArticulationView
 import numpy as np
 from omni.isaac.core.utils.prims import get_prim_path
 from omni.isaac.core.prims import RigidPrimView
+import torch
 
 
 
@@ -77,12 +78,21 @@ if __name__ == "__main__":
         # print('orientation is :' + str(orientation))
         # position,orientation = ee.get_world_pose()
         # pos = ur5.get_world_poses()
-        for i, agent in enumerate(ur5_list):
+        
+        # for i, agent in enumerate(ur5_list):
+        for i in range(1000):
+            world.step(render=True)
+        
+        pos,ori = ur5_list[0].get_world_poses()
+
+        ur5_list[0].set_world_poses(positions = pos + 1, orientations = ori)
+        new_pos = ur5_list[0].get_world_poses()
             # print(str(agent.ee_link.get_coms()))
             # print(str(agent.ee_link.get_world_poses()))
             # link_pos = agent.get_link_positions()
             # contact = agent.get_contact_force_data()
             # print(str(contact))
+
 
         # print(str(pos))
         # print(str(pos[0] - np.array([1,1,1])))

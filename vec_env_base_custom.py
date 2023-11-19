@@ -174,13 +174,13 @@ class VecEnvBase(gym.Env):
         self.action_space = self._task.action_space
 
         observations = self._task.get_observations()
-        actions = torch.zero((self._task._num_actions)) # reset the shape of actions 
+        # actions = torch.zeros((self._task._num_actions)) # reset the shape of actions 
         
         # actions = torch.zeros((self.num_envs, self._task._num_actions))
         # observations, _, _, _ = self.step(actions)
 
 
-        return observations, actions
+        return observations
 
     @property
     def num_envs(self):
