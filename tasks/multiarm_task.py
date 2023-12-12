@@ -5,7 +5,7 @@
 # and any modifications thereto.  Any use, reproduction, disclosure or
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
-#
+
 
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.core.utils.stage import add_reference_to_stage
@@ -25,7 +25,11 @@ from gym import spaces
 import numpy as np
 import torch
 import math
-from tasks import TaskLoader
+
+import sys 
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/robots')
+from taskloader import TaskLoader
 from utils import load_config
 
 from omniisaacgymenvs.robots.articulations.franka import Franka
@@ -120,7 +124,6 @@ class MultiarmTask(BaseTask):
         self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_agents, self._num_action))
         self.observation_space = spaces.Box(low=-np.Inf, high=np.Inf, shape=(self.num_agents, self._num_observation))
 
-        stage = get_current_stage()
 
         self.actions = torch.zeros((self.num_agents, self._num_action), device=self._device)
 
@@ -133,10 +136,10 @@ class MultiarmTask(BaseTask):
 
     def set_up_scene(self, scene, replicate_physics=True) -> None:
 
-        # eliminate all existing scene firstly
-        if scene != None:
-            scene.clear()
-
+        # # eliminate all existing scene firstly
+        # if scene != None:
+        #     scene.clear()
+        self._stage = get_current_stage()
         self.num_agents=len(self.current_task.start_config)
 
         self.get_franka(self.num_agents)
@@ -164,6 +167,10 @@ class MultiarmTask(BaseTask):
             scene.add(franka)
             scene.add(franka.ee)
             scene.add(franka.target)
+
+            for link in franka.link_for_contact:
+                scene.add(link)
+
             self._franka_list.append(franka)
         scene.add_default_ground_plane()
         
@@ -190,8 +197,9 @@ class MultiarmTask(BaseTask):
                 orientation = torch.tensor(self.current_task.base_poses[i][1])
                 orientation = orientation[[3,0,1,2]]
                 default_dof_pos = self.current_task.start_config[i]
-                UR5(prim_path="/World/Franka/franka{}".format(i), translation=position, orientation=orientation, usd_path=usd_path, default_dof_pos=default_dof_pos) 
-
+                ur5 = UR5(prim_path="/World/Franka/franka{}".format(i), translation=position, orientation=orientation, usd_path=usd_path, default_dof_pos=default_dof_pos) 
+                # ur5.set_anymal_properties(self._stage, ur5.prim)
+                # ur5.prepare_contacts(self._stage, ur5.prim)
                 # sensor_result, sensor = omni.kit.commands.execute(
                 #         "IsaacSensorCreateContactSensor",
                 #         path="/sensor",
@@ -207,11 +215,12 @@ class MultiarmTask(BaseTask):
                 #         visualize=True,)
                 
             elif i >= self.num_agents:
-                UR5(prim_path="/World/Franka/franka{}".format(i), translation=[0, 0, -10], 
+                ur5 = UR5(prim_path="/World/Franka/franka{}".format(i), translation=[0, 0, -10], 
                 #    orientation=orientation, 
                    usd_path=usd_path, 
                 #    default_dof_pos=default_dof_pos
                    )
+                # ur5.prepare_contacts(self._stage, ur5.prim)
 
 
 
@@ -414,7 +423,7 @@ class MultiarmTask(BaseTask):
                 force = link.get_net_contact_forces()
 
                 if contact:
-                    print('collision happens with link at path:' + str(link.prim_paths_expr)) # or link.prims
+                    print('collision happens with link at path:' + str(link.prims)) # or link.prims
                     return 1
             
         return 0 
@@ -454,16 +463,17 @@ class MultiarmTask(BaseTask):
 
         # collision_penalties = np.array(self.collision_penalty if self.check_collision() else 0)
         collision_penalties = np.zeros(self.num_agents)
-        for i, agent in enumerate(self._franka_list[0:self.num_agents]):
-            # collision_check[i] = self.check_collision(agent=agent) 
-            # if i < self.num_agents:
-            collision = self.check_collision(agent=agent)
-            if collision == 1:
-                collision_penalties[i] = self.collision_penalty
-            elif collision == 0:
-                collision_penalties[i] = 0
-            else:
-                raise ValueError('The reading of the contact sensor makes no sense')
+        if self.progress_buf > 1:
+            for i, agent in enumerate(self._franka_list[0:self.num_agents]):
+                # collision_check[i] = self.check_collision(agent=agent) 
+                # if i < self.num_agents:
+                collision = self.check_collision(agent=agent)
+                if collision == 1:
+                    collision_penalties[i] = self.collision_penalty
+                elif collision == 0:
+                    collision_penalties[i] = 0
+                else:
+                    raise ValueError('The reading of the contact sensor makes no sense')
 
 
         # individually_reached_target_rewards = np.array([
@@ -520,10 +530,8 @@ class MultiarmTask(BaseTask):
 
         franka_rewards_sum = \
             collision_penalties + indiv_reach_target_rewards +\
-            collectively_reach_targets_reward 
-            # + survival_penalties + \
-            # proximity_penalties + \
-            # delta_position_rewards + delta_orientation_rewards
+            collectively_reach_targets_reward \
+            # + delta_position_rewards + delta_orientation_rewards
 
         # if self.centralized_policy:
         #     return np.array([ur5_rewards_sum.sum()])

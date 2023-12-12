@@ -1,6 +1,6 @@
-# from omni.isaac.kit import SimulationApp
+import sys 
 
-# simulation_app = SimulationApp({"headless": False})
+sys.path.append()
 
 import gym
 from vec_env_base_custom import VecEnvBase
@@ -9,7 +9,7 @@ from vec_env_base_custom import VecEnvBase
 env = VecEnvBase(headless=False)
 
 # create task and register task
-from multiarm_task import MultiarmTask
+from Di_custom.multiarmRL.tasks.multiarm_task import MultiarmTask
 
 task = MultiarmTask(name="Multiarm")
 env.set_task(task, backend="torch")

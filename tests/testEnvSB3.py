@@ -1,13 +1,31 @@
-from stable_baselines3.common.env_checker import check_env
-from omni.isaac.gym.vec_env import VecEnvBase
+import sys 
+
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/envs')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/tasks')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/networks')
+
+import gym
+from vec_env_base_custom import VecEnvBase
+import torch
 # from omni.isaac.gym.vec_env import VecEnvMT
+from stable_baselines3 import SAC
+
+from lstm_torch_layers import LSTMExtractor
 
 env = VecEnvBase(headless=False)
 
 # create task and register task
-from cartpole_task import CartpoleTask
+# from Di_custom.multiarmRL.tasks.multiarm_task import MultiarmTask
+from multiarm_task import MultiarmTask
 
-task = CartpoleTask(name="Cartpole")
+task = MultiarmTask(name="Multiarm")
 env.set_task(task, backend="torch")
 
-check_env(env)
+model = SAC('MlpPolicy',
+            env = env,
+            policy_kwargs={"features_extractor_class": LSTMExtractor, 
+                        #    "features_extractor_kwargs": {"features_dim": 64}
+                           })
+
+model.learn(total_timesteps=100000)
+model.save()

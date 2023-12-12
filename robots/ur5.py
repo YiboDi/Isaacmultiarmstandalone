@@ -86,3 +86,23 @@ class UR5(Robot):
             )
 
             PhysxSchema.PhysxJointAPI(get_prim_at_path(f"{self.prim_path}/{dof}")).CreateMaxJointVelocityAttr().Set(max_velocity[i])
+    # # test below
+    # def prepare_contacts(self, stage, prim):
+    #     for link_prim in prim.GetChildren():
+    #         if link_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI): 
+    #             if "_HIP" not in str(link_prim.GetPrimPath()):
+    #                 rb = PhysxSchema.PhysxRigidBodyAPI.Get(stage, link_prim.GetPrimPath())
+    #                 rb.CreateSleepThresholdAttr().Set(0)
+    #                 cr_api = PhysxSchema.PhysxContactReportAPI.Apply(link_prim)
+    #                 cr_api.CreateThresholdAttr().Set(0)
+    # # test
+    # def set_anymal_properties(self, stage, prim):
+    #     for link_prim in prim.GetChildren():
+    #         if link_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI): 
+    #             rb = PhysxSchema.PhysxRigidBodyAPI.Get(stage, link_prim.GetPrimPath())
+    #             rb.GetDisableGravityAttr().Set(False)
+    #             rb.GetRetainAccelerationsAttr().Set(False)
+    #             rb.GetLinearDampingAttr().Set(0.0)
+    #             rb.GetMaxLinearVelocityAttr().Set(1000.0)
+    #             rb.GetAngularDampingAttr().Set(0.0)
+    #             rb.GetMaxAngularVelocityAttr().Set(64/np.pi*180)

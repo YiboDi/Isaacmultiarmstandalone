@@ -25,13 +25,15 @@ class UR5View(ArticulationView):
         # self.goal_config = None
         #the order of links might be different with pybullet sim
         self.base_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/base_link")
-        self.shoulder_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/shoulder_link", track_contact_forces=True)
-        self.upper_arm_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/upper_arm_link", track_contact_forces=True)
-        self.forearm_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/forearm_link", track_contact_forces=True)
-        self.wrist_1_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_1_link", track_contact_forces=True)
-        self.wrist_2_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_2_link", track_contact_forces=True)
-        self.wrist_3_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_3_link", track_contact_forces=True)
-        self.ee_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/ee_link", track_contact_forces=True)
+        self.shoulder_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/shoulder_link", name = name + '_shoulder_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
+        self.upper_arm_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/upper_arm_link", name= name + '_upper_arm_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
+        self.forearm_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/forearm_link", name=name+'_forearm_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
+        self.wrist_1_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_1_link", name=name+'_wrist_1_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
+        self.wrist_2_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_2_link", name = name+'_wrist_2_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
+        self.wrist_3_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_3_link", name=name+'_wrist_3_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
+        self.ee_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/ee_link", 
+                                        # track_contact_forces=True, prepare_contact_sensors=True,
+                                        )
         self.tool0 = RigidPrimView(prim_paths_expr = prim_paths_expr + "/tool0")
         self.world = RigidPrimView(prim_paths_expr = prim_paths_expr + "/world")
 
@@ -53,7 +55,10 @@ class UR5View(ArticulationView):
                           self.wrist_1_link,
                           self.wrist_2_link,
                           self.wrist_3_link,
-                          self.ee_link]
+                          ]
+        
+        # for link in self.link_for_contact:
+        #     link.initialize()
         
         self.ee = VisualCylinder(prim_path=prim_paths_expr + "/ee_link/ee", radius=0.02, height=0.1, name=name + 'EE')
         self.target = VisualCylinder(prim_path=prim_paths_expr + "/target", radius=0.02, height=0.1,
