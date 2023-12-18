@@ -45,7 +45,7 @@ class BaseNet(nn.Module):
                 else:
                     self.init_hidden_fn = lambda batch_size, device:\
                         init_random_hidden_fn(batch_size, device)
-            elif self.network_config['initial_hidden_state'] == 'zero':
+            elif self.network_config['initial_hidden_state'] == 'zero': #true
                 def init_zero_hidden_fn(batch_size, device):
                     return torch.zeros(
                         self.num_layers,
@@ -110,12 +110,12 @@ class BaseNet(nn.Module):
                     self.output_dim))
         return layers
 
-    def process_sequence(self, input):
+    def process_sequence(self, input): # input = obs with shape N * 107
         self.seq_net.flatten_parameters()
         _, h_t = self.seq_net(
             input,
             self.init_hidden_fn(
-                batch_size=input.size(0),
+                batch_size=input.size(0), # batch_size = number of ur5
                 device=input.device))
         if self.seq_net_class == nn.LSTM:
             (h_t, _) = h_t
@@ -123,7 +123,7 @@ class BaseNet(nn.Module):
 
     def forward(self, input):
         if self.sequence_input:
-            input = self.process_sequence(input)
+            input = self.process_sequence(input) # input = obs with shape N * 107
         return self.net(input)
 
 
@@ -183,7 +183,7 @@ class StochasticActor(BaseNet):
             dist = self.generate_dist(action_means, action_variances)
             if return_dist:
                 return dist
-            if reparametrize:
+            if reparametrize: #true
                 actions = dist.rsample()
             else:
                 actions = dist.sample()
@@ -224,3 +224,31 @@ class Q(BaseNet):
             obs = self.process_sequence(obs)
             obs = torch.squeeze(obs, dim=1)
         return self.net(torch.cat((obs, actions), 1))
+
+
+def create_network(training_config, actor_obs_dim = 107, action_dim = 6, critic_obs_dim = 107):
+    policy_net = StochasticActor(
+            obs_dim=actor_obs_dim,
+            action_dim=action_dim,
+            action_variance_bounds=training_config['action_variance'],
+            network_config=training_config['network']['actor'])
+    
+    Q1 = Q(obs_dim=critic_obs_dim + 6
+                 if training_config['centralized_critic'] # default to be false
+                 else critic_obs_dim, 
+                 action_dim=action_dim,
+                 network_config=training_config['network']['critic'])
+    
+    Q2 = Q(obs_dim=critic_obs_dim + 6
+                 if training_config['centralized_critic'] # default to be false
+                 else critic_obs_dim, 
+                 action_dim=action_dim,
+                 network_config=training_config['network']['critic'])
+    
+    network = {
+        'policy':policy_net,
+        'Q1' : Q1,
+        'Q2' : Q2,
+    }
+
+    return network

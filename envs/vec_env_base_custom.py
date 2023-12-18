@@ -26,7 +26,7 @@ class VecEnvBase(gym.Env):
     """
 
     def __init__(
-        self, headless: bool, sim_device: int = 0, enable_livestream: bool = False, enable_viewport: bool = False
+        self, headless: bool = False, sim_device: int = 0, enable_livestream: bool = False, enable_viewport: bool = False
     ) -> None:
         """ Initializes RL and task parameters.
 

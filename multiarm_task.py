@@ -6,11 +6,7 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 import sys
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/exts')
-
-# from omni.isaac.kit import SimulationApp
-
-# simulation_app = SimulationApp({"headless": False})
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/exts/omni.isaac.core')
 
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.core.utils.stage import add_reference_to_stage
@@ -399,7 +395,7 @@ class MultiarmTask(BaseTask):
             # self.obs[i,:] = torch.cat(dof_pos, hand_pos, hand_rot) # shape of self.obs is num_robots * (num_joint_pos * num_joint_vel)
 
 
-        return self.obs # observation of the whole system, shape of num_agents*num_agents*ob of a single agent(107)
+        return self.obs # observation of the whole system, shape of num_agents*num_agents*ob of a single agent
 
     def check_collision(self, agent):
 
@@ -447,8 +443,8 @@ class MultiarmTask(BaseTask):
     
     def indiv_reach_targets(self, agent):
         pos_delta = np.linalg.norm(agent.ee_link.get_world_poses()[0] - agent.target.get_world_pose()[0])
-        ori_delta = np.linalg.norm(agent.ee_link.get_world_poses()[1] - agent.target.get_world_pose()[1])
-        if pos_delta < self.position_tolerance and ori_delta < self.orientation_tolerance:
+        ori_delat = np.linalg.norm(agent.ee_link.get_world_poses()[1] - agent.target.get_world_pose()[1])
+        if pos_delta < self.position_tolerance and ori_delat < self.orientation_tolerance:
             return 1
         else:
             return 0
@@ -456,6 +452,15 @@ class MultiarmTask(BaseTask):
 
     def calculate_metrics(self) -> None:
 
+        # current_ur5_ee_residuals = self.get_ur5_eef_residuals()
+        # if self.prev_ur5_ee_residuals is None:
+        #     self.prev_ur5_ee_residuals = current_ur5_ee_residuals
+
+
+        # collision_penalties = np.array([
+        #     (self.collision_penalty if ur5_state['colliding'] else 0)
+        #     for ur5_state in state['ur5s']
+        # ])
 
         # collision_penalties = np.array(self.collision_penalty if self.check_collision() else 0)
         collision_penalties = np.zeros(self.num_agents)
@@ -472,6 +477,12 @@ class MultiarmTask(BaseTask):
                     raise ValueError('The reading of the contact sensor makes no sense')
 
 
+        # individually_reached_target_rewards = np.array([
+        #     (self.individually_reach_target
+        #         if ur5_state['reached_target']
+        #         else 0)
+        #     for ur5_state in state['ur5s']
+        # ])
         indiv_reach_target_rewards = np.zeros(self.num_agents)
         for i, agent in enumerate(self._franka_list[0:self.num_agents]):
             # if i < self.num_agents:
@@ -482,31 +493,33 @@ class MultiarmTask(BaseTask):
             else:
                 raise ValueError('The agent should either reach its target or not')
 
-        pos_rewards = np.zeros(self.num_agents)
-        ori_rewards = np.zeros(self.num_agents)
-        for i, agent in enumerate(self._franka_list[0:self.num_agents]):
-            pos_delta = np.linalg.norm(agent.ee_link.get_world_poses()[0] - agent.target.get_world_pose()[0])
-            ori_delta = np.linalg.norm(agent.ee_link.get_world_poses()[1] - agent.target.get_world_pose()[1])
-            # pos_rewards[i] = 1.0 / (1.0 + pos_delta ** 2) if pos_delta < 0.04 else (1.0 / (1.0 + pos_delta ** 2)) ** 2
-            # ori_rewards[i] = 1.0 / (1.0 + ori_delta ** 2) if pos_delta < 0.04 else 0
-            if pos_delta < self.position_tolerance:
-                pos_rewards[i] = 1
-                if ori_delta < self.orientation_tolerance:
-                    ori_rewards[i] = 1
-                else:
-                    ori_rewards[i] = 1.0 / (1.0 + ori_delta ** 2)
-            elif pos_delta < self.position_tolerance * 2:
-                pos_rewards[i] = 1.0 / (1.0 + pos_delta ** 2)
-                if ori_delta < self.orientation_tolerance:
-                    ori_rewards[i] = 1
-                else:
-                    ori_rewards[i] = 1.0 / (1.0 + ori_delta ** 2)
-            else:
-                pos_rewards[i] = (1.0 / (1.0 + pos_delta ** 2)) ** 2
-
         
-        
+        # Only give delta rewards if ee is within a radius
+        # away from the target ee
+        # delta_position_rewards = \
+        #     [(prev - curr) * self.delta_reward['position']
+        #      if curr < self.delta_reward['activation_radius']
+        #      else 0.0
+        #      for curr, prev in zip(
+        #         current_ur5_ee_residuals[0],
+        #         self.prev_ur5_ee_residuals[0])]
+        # delta_orientation_rewards = \
+        #     [(prev - curr) * self.delta_reward['orientation']
+        #      if curr_pos_res < self.delta_reward['activation_radius']
+        #      else 0.0
+        #      for curr, prev, curr_pos_res in zip(
+        #         current_ur5_ee_residuals[1],
+        #         self.prev_ur5_ee_residuals[1],
+        #         current_ur5_ee_residuals[0])]
 
+
+        # collectively_reached_targets = (
+        #     state['reach_count'] == len(self.active_ur5s))
+        # collective_reached_targets_rewards = np.array(
+        #     [(self.collectively_reach_target
+        #         if collectively_reached_targets
+        #       else 0)
+        #      for _ in range(len(self.active_ur5s))])
 
         if self.all_reach_targets:
             collectively_reach_targets_reward = np.full((self.num_agents, ), self.coorp_reach_target_reward)
@@ -519,7 +532,7 @@ class MultiarmTask(BaseTask):
         franka_rewards_sum = \
             collision_penalties + indiv_reach_target_rewards +\
             collectively_reach_targets_reward \
-            + pos_rewards + ori_rewards
+            # + delta_position_rewards + delta_orientation_rewards
 
         # if self.centralized_policy:
         #     return np.array([ur5_rewards_sum.sum()])
