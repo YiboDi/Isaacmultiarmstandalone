@@ -17,7 +17,7 @@ import time
 
 class SAC():
     def __init__(self, 
-                 network: Dict[str, nn.Module],
+                 network,
                  load_path = None
                 #  replay_buffer, 
                 #  lr=3e-4,
@@ -40,16 +40,16 @@ class SAC():
         # self.q1_optimizer = optim.Adam(self.q1_net.parameters(), lr=self.q_lr)
         # self.q2_optimizer = optim.Adam(self.q2_net.parameters(), lr=self.q_lr)
 
-        capacity = 200000
+        capacity = 200000 #(10^4 to 10^6 )
         data_dic = {'observations':[],
                     'actions':[],
                     'rewards':[],
                     'next_observations':[]}
         self.replay_buffer = ReplayBufferDataset(data=data_dic, device=self.device, capacity=capacity)
-        self.train_frequency = 100000
+        # self.train_frequency = 100000
 
         # self.batch_size = 256
-        self.batch_size = 4096
+        self.batch_size = 4096 #(Typically 64-256 for SAC algorithms)
         self.num_updates_per_train = 10 #train_epoch() for 10 times each train()
         # self.tau = 0.05
         self.tau = 0.001
@@ -60,7 +60,7 @@ class SAC():
         self.minimum_replay_buffer_freshness = 0.7
         self.discount = 0.99
         self.alpha = 0.001
-        self.memory_cluster_capacity = 50000
+        # self.memory_cluster_capacity = 50000
         self.reparametrize = True
         self.action_scaling = 1
         self.reward_scale = 1
@@ -82,12 +82,12 @@ class SAC():
             # "minimum_replay_buffer_freshness": 0.7,
             # "action_scaling": 1
 
-        # self.policy = self.network['policy']().to(self.device)
-        # self.Q1 = self.network['Q1']().to(self.device)
-        # self.Q2 = self.network['Q2']().to(self.device)
-        self.policy = self.network['policy']
-        self.Q1 = self.network['Q1']
-        self.Q2 = self.network['Q2']
+        self.policy = self.network['policy']().to(self.device)
+        self.Q1 = self.network['Q1']().to(self.device)
+        self.Q2 = self.network['Q2']().to(self.device)
+        # self.policy = self.network['policy']
+        # self.Q1 = self.network['Q1']
+        # self.Q2 = self.network['Q2']
 
         self.Q1_target = deepcopy(self.Q1)
         self.Q2_target = deepcopy(self.Q2)

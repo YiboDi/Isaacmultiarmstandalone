@@ -232,11 +232,16 @@ class MultiarmTask(BaseTask):
     def set_initial_camera_params(self, camera_position=[5, 5, 2], camera_target=[0, 0, 0]):
         set_camera_view(eye=camera_position, target=camera_target, camera_prim_path="/OmniverseKit_Persp")
 
+    def update_task(self):
+        self.current_task = self.taskloader.get_next_task()
+        # return current_task
 
     def reset(self):
-        self.current_task = self.taskloader.get_next_task()
-        # self.set_up_scene()
-
+        #get the next task
+        # self.current_task = self.taskloader.get_next_task()
+        self.update_task()
+       
+        # get the config of the task
         self.num_agents=len(self.current_task.start_config)
 
         base_poses = self.current_task.base_poses
@@ -535,12 +540,22 @@ class MultiarmTask(BaseTask):
         # resets = torch.where(self.progress_buf >= self.episode_length - 1, torch.ones_like(self.resets), self.resets)
         resets = 0
         # resets = torch.where(self.check_collision(), 1, resets)
+
+        # reset when collide
         for i,agent in enumerate(self._franka_list[0:self.num_agents]):
             # if i < self.num_agents:
             collision = self.check_collision(agent=agent)
             if collision == 1:
                 resets = 1
         # resets = torch.where(self.progress_buf >= self._max_episode_length, 1, resets)
+
+        # reset when all robots reach targets
+        for i ,agent in enumerate(self._franka_list[0:self.num_agents]):
+            if np.linalg.norm(agent.ee_link.get_world_poses()[0] - agent.target.get_world_pose()[0]) > 0.5 * self.position_tolerance \
+               or np.linalg.norm(agent.ee_link.get_world_poses()[1] - agent.target.get_world_poses()[1]) > 0.5 * self.orientation_tolerance:
+                 pass # make up
+
+        # reset when reach max steps
         resets = 1 if self.progress_buf >= self._max_episode_length else resets
 
         self.resets = resets
