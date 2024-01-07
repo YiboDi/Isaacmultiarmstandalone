@@ -1,6 +1,8 @@
 from vec_env_base_custom import VecEnvBase
 import numpy as np
 from torch import FloatTensor
+from math import acos, cos, sin
+from numpy.linalg import norm
 
 def angle(a, b):
     # Angle between two vectors1
@@ -12,7 +14,7 @@ class expertSupervisionEnv(VecEnvBase):
         super(expertSupervisionEnv, self).__init__(headless=headless)
         # self.mode = self._task.mode
         self.mode = None
-        self.expert_root_dir = '/home/tp2/papers/multiarm_dataset/expert'
+        self.expert_root_dir = '/home/tp2/papers/multiarm_dataset/expert/'
 
 
     def reset(self):
@@ -25,7 +27,7 @@ class expertSupervisionEnv(VecEnvBase):
             rrt_waypoints = np.load(expert_path)
         except Exception:
             return None
-        return rrt_waypoints
+        return rrt_waypoints # joint_position
     
     def set_task(self, task, backend="numpy", sim_params=None, init_sim=True) -> None:
          return super().set_task(task, backend, sim_params, init_sim)

@@ -4,18 +4,21 @@ class MultiarmSupervision(MultiarmTask):
     def __init__(self, name="Multiarm"):
         super().__init__(name=name)
         self.mode = 'normal'
+        # self.mode = 'supervision' # this is set to be supervision because the env will be reset at initialzation, so first task will run in normal mode.
         self.success = False
 
 
-    def update_task(self):
+    def update_task(self): # this function will be called when reset, so condition should represent the mode in the following episode
         # return super().update_task()
         if self.mode == 'normal' and self.success == False:
+            super().update_task()
             self.mode = 'supervision'
         elif self.mode == 'normal' and self.success == True:
             self.success = False
             super().update_task()
         elif self.mode =='supervision':
-            super().update_task()
+            # super().update_task()
+            self.mode = 'normal'
 
     # def reset(self):
     #     super().reset()

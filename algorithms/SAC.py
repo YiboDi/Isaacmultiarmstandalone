@@ -82,12 +82,12 @@ class SAC():
             # "minimum_replay_buffer_freshness": 0.7,
             # "action_scaling": 1
 
-        self.policy = self.network['policy']().to(self.device)
-        self.Q1 = self.network['Q1']().to(self.device)
-        self.Q2 = self.network['Q2']().to(self.device)
-        # self.policy = self.network['policy']
-        # self.Q1 = self.network['Q1']
-        # self.Q2 = self.network['Q2']
+        # self.policy = self.network['policy']().to(self.device)
+        # self.Q1 = self.network['Q1']().to(self.device)
+        # self.Q2 = self.network['Q2']().to(self.device)
+        self.policy = self.network['policy']
+        self.Q1 = self.network['Q1']
+        self.Q2 = self.network['Q2']
 
         self.Q1_target = deepcopy(self.Q1)
         self.Q2_target = deepcopy(self.Q2)
