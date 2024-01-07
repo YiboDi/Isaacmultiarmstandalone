@@ -59,7 +59,8 @@ class MultiarmTask(BaseTask):
         self.taskloader = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
         self.current_task = self.taskloader.get_next_task()
 
-        self.action_scale = 1.0
+        # self.action_scale = 1.0
+        self.action_scale = 7.5
         self.dt = 1/60 # difference in time between two consecutive states or updates
         self.episode_length = self.config['environment']['episode_length']
         self.progress_buf = 0
@@ -547,16 +548,26 @@ class MultiarmTask(BaseTask):
             collision = self.check_collision(agent=agent)
             if collision == 1:
                 resets = 1
+                print('end episode because of collision')
         # resets = torch.where(self.progress_buf >= self._max_episode_length, 1, resets)
 
         # reset when all robots reach targets
-        for i ,agent in enumerate(self._franka_list[0:self.num_agents]):
-            if np.linalg.norm(agent.ee_link.get_world_poses()[0] - agent.target.get_world_pose()[0]) > 0.5 * self.position_tolerance \
-               or np.linalg.norm(agent.ee_link.get_world_poses()[1] - agent.target.get_world_poses()[1]) > 0.5 * self.orientation_tolerance:
-                 pass # make up
+        # for i ,agent in enumerate(self._franka_list[0:self.num_agents]):
+        #     if np.linalg.norm(agent.ee_link.get_world_poses()[0] - agent.target.get_world_pose()[0]) > 0.5 * self.position_tolerance \
+        #        and np.linalg.norm(agent.ee_link.get_world_poses()[1] - agent.target.get_world_poses()[1]) > 0.5 * self.orientation_tolerance:
+        #         #  pass # make up
+        #         resets = 1
+        #         print('end episode because of success')
+        if self.all_reach_targets():
+            resets = 1
+            print('end episode because of success')
+            
 
         # reset when reach max steps
-        resets = 1 if self.progress_buf >= self._max_episode_length else resets
+        # resets = 1 if self.progress_buf >= self._max_episode_length else resets
+        if self.progress_buf >= self._max_episode_length:
+            resets = 1
+            print('end episode because of max steps')
 
         self.resets = resets
 

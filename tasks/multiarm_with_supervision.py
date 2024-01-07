@@ -30,18 +30,19 @@ class MultiarmSupervision(MultiarmTask):
     #         self.mode = 'normal'
     #         self.success = False
             
-    def is_done(self):
+    # is_done method in parent class is sufficient     
+    # def is_done(self):
 
-        resets = 0
-        # resets = torch.where(self.check_collision(), 1, resets)
-        for i,agent in enumerate(self._franka_list[0:self.num_agents]):
-            # if i < self.num_agents:
-            collision = self.check_collision(agent=agent)
-            if collision == 1:
-                resets = 1
-        # resets = torch.where(self.progress_buf >= self._max_episode_length, 1, resets)
-        resets = 1 if self.progress_buf >= self._max_episode_length else resets
+    #     resets = 0
+    #     # resets = torch.where(self.check_collision(), 1, resets)
+    #     for i,agent in enumerate(self._franka_list[0:self.num_agents]):
+    #         # if i < self.num_agents:
+    #         collision = self.check_collision(agent=agent)
+    #         if collision == 1:
+    #             resets = 1
+    #     # resets = torch.where(self.progress_buf >= self._max_episode_length, 1, resets)
+    #     resets = 1 if self.progress_buf >= self._max_episode_length else resets
 
-        self.resets = resets
+    #     self.resets = resets
 
-        return resets
+    #     return resets
