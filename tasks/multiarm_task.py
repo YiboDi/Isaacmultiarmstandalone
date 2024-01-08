@@ -29,7 +29,8 @@ from pxr import Usd, UsdGeom
 from gym import spaces
 import numpy as np
 import torch
-import math
+# import math
+from math import pi
 
 import sys 
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL')
@@ -60,7 +61,9 @@ class MultiarmTask(BaseTask):
         self.current_task = self.taskloader.get_next_task()
 
         # self.action_scale = 1.0
-        self.action_scale = 7.5
+        # self.action_scale = 7.5
+        self.action_scale = 10.0
+        # self.action_scale = 15.0
         self.dt = 1/60 # difference in time between two consecutive states or updates
         self.episode_length = self.config['environment']['episode_length']
         self.progress_buf = 0
@@ -87,7 +90,11 @@ class MultiarmTask(BaseTask):
         self.observation_space = None
         self.action_space = None
 
-        self._max_episode_length = 150
+        # self._max_episode_length = 150
+        self._max_episode_length = 500 # from config
+
+        self.dof_lower_limits = torch.tensor([-2 * pi, -2 * pi, -pi, -2 * pi, -2 * pi, -2 * pi], device=self._device)
+        self.dof_upper_limits = torch.tensor([2 * pi, 2 * pi, pi, 2 * pi, 2 * pi, 2 * pi], device=self._device)
 
 
         # trigger __init__ of parent class
@@ -157,9 +164,12 @@ class MultiarmTask(BaseTask):
         for i in range(4):
 
             if i < self.num_agents:
+                target_pos = self.current_task.target_eff_poses[i][0]
+                target_ori = self.current_task.target_eff_poses[i][1]
+                target_ori = target_ori[[3, 0, 1, 2]]
                 franka = UR5View(prim_paths_expr="/World/Franka/franka{}".format(i), name="franka{}_view".format(i),
-                                target_pos = self.current_task.target_eff_poses[i][0],
-                                target_ori = self.current_task.target_eff_poses[i][1]
+                                target_pos = target_pos,
+                                target_ori = target_ori
                                 )
 
             # add the following variable in UR5View init
@@ -319,7 +329,8 @@ class MultiarmTask(BaseTask):
         # self.franka_dof_speed_scales = torch.ones_like(self.franka_dof_lower_limits)
         # targets = self.franka_dof_targets + self.franka_dof_speed_scales * self.dt * self.actions * self.action_scale
         # self.franka_dof_targets[:] = tensor_clamp(targets, self.franka_dof_lower_limits, self.franka_dof_upper_limits)
-        self.franka_dof_targets[:] = self.franka_dof_targets + self.dt * self.actions * self.action_scale # shape of self.num_agents*self.num_action
+        targets = self.franka_dof_targets + self.dt * self.actions * self.action_scale # shape of self.num_agents*self.num_action
+        self.franka_dof_targets[:] = tensor_clamp(targets, self.dof_lower_limits, self.dof_upper_limits)
         for i, agent in enumerate(self._franka_list[0:self.num_agents]):
             self._franka_list[i].set_joint_position_targets(self.franka_dof_targets[i, :]) 
 
@@ -514,7 +525,7 @@ class MultiarmTask(BaseTask):
         
 
 
-        if self.all_reach_targets:
+        if self.all_reach_targets():
             collectively_reach_targets_reward = np.full((self.num_agents, ), self.coorp_reach_target_reward)
         else:
             collectively_reach_targets_reward = np.zeros(self.num_agents)

@@ -82,7 +82,8 @@ class VecEnvBase(gym.Env):
                 device = "cuda"
 
         self._world = World(
-            stage_units_in_meters=1.0, rendering_dt=1.0 / 60.0, backend=backend, sim_params=sim_params, device=device
+            stage_units_in_meters=1.0, rendering_dt=1.0 / 60.0, backend=backend, sim_params=sim_params, device=device,
+            # physics_dt=1.0 / 240.0,           # set physics frequency to 240 hz
         )
         self._world.add_task(task)
         self._task = task
@@ -149,7 +150,7 @@ class VecEnvBase(gym.Env):
             info(dict): Dictionary of extras data.
         """
         self._task.pre_physics_step(actions)
-        self._world.step(render=self._render)
+        self._world.step(render=self._render) # steps the physics simulation
 
         self.sim_frame_count += 1
 

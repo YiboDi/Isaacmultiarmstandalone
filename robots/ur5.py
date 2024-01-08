@@ -67,8 +67,9 @@ class UR5(Robot):
         # default_dof_pos = [math.degrees(x) for x in [0.0, -1.0, 0.0, -2.2, 0.0, 2.4, 0.8]] + [0.02, 0.02]
         stiffness = [400*np.pi/180] * 6
         # damping = [80*np.pi/180] * 6
+        damping = [160*np.pi/180] * 6
         # stiffness = [0] * 6
-        damping = [0] * 6
+        # damping = [0] * 6
         max_force = [150, 150, 150, 28, 28, 28] # from ur5.py
         max_velocity = [math.degrees(x) for x in [3.15, 3.15, 3.15, 3.2, 3.2, 3.2]] # radians to degrees
         default_dof_pos = torch.tensor(self._default_dof_pos)
@@ -86,6 +87,9 @@ class UR5(Robot):
             )
 
             PhysxSchema.PhysxJointAPI(get_prim_at_path(f"{self.prim_path}/{dof}")).CreateMaxJointVelocityAttr().Set(max_velocity[i])
+
+
+
     # # test below
     # def prepare_contacts(self, stage, prim):
     #     for link_prim in prim.GetChildren():

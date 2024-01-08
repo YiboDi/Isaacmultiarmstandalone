@@ -76,9 +76,9 @@ for episode in range(num_episodes):
                   for idx, wp in enumerate(expert_waypoints)]
             result.sort(
                 key=lambda v: v[1])
-            for i in range(5):
-                print('waypoint{} is:'.format(i)+str(expert_waypoints[i]))
-            next_wp_idx = result[0][0] + 1 # ensure that the initial next_wp is next to curr_j
+            # for i in range(5):
+            #     print('waypoint{} is:'.format(i)+str(expert_waypoints[i]))
+            next_wp_idx = result[0][0] + 1 if result[0][0] < len(expert_waypoints)-1 else result[0][0]# ensure that the initial next_wp is next to curr_j
 
             # if next_wp is too close to curr_j, check next one in expert_waypoint. when condition is satisfied, initialize the target_j as next_wp.
             # if dis between next_wp and curr_j smaller than threshold (here 0.01), then we regard robots are current in this pose, so check next wp.
@@ -86,9 +86,10 @@ for episode in range(num_episodes):
             # seem 0.01 is too small
             # while dis.any() < 0.01:
             while np.all(curr_j - expert_waypoints[next_wp_idx] < 0.01):
-                next_wp_idx += 1
-                if next_wp_idx >= len(expert_waypoints):
+                # next_wp_idx += 1
+                if next_wp_idx >= len(expert_waypoints) - 1:
                     break
+                next_wp_idx += 1
                 
             target_wp_idx = next_wp_idx
             next_dir_j = expert_waypoints[next_wp_idx] - curr_j
@@ -97,11 +98,11 @@ for episode in range(num_episodes):
             while True: 
                 target_j = expert_waypoints[target_wp_idx]
                 target_dir_j = target_j - curr_j
-                # max_action = 0.5
-                # joint_tolerance = 0.1
+                max_action = 0.5
+                joint_tolerance = 0.1
                 # test different parameters
-                max_action = 1
-                joint_tolerance = 0.2
+                # max_action = 1
+                # joint_tolerance = 0.2
                 if target_wp_idx < len(expert_waypoints) - 1 and \
                     all([delta_j < max_action for delta_j in abs(target_dir_j)])\
                         and angle(next_dir_j, target_dir_j) < joint_tolerance:
@@ -109,17 +110,19 @@ for episode in range(num_episodes):
                 else:
                     break
             # if next_wp_idx (which is nearest waypoint to the curr_j) is the last one, change the mode to normal
-            if next_wp_idx < len(expert_waypoints) - 1:
-                next_wp_idx += 1
-            # actions = target_j - curr_j
-            # env.step(actions)
+            # if next_wp_idx < len(expert_waypoints) - 1:
+            #     next_wp_idx += 1
+            # # actions = target_j - curr_j
+            # # env.step(actions)
                 
-            # so when else, should reset the task, modify
-            else:
-                mode = 'normal'
+            # # so when else, should reset the task, modify
+            # else:
+            #     mode = 'normal'
 
             #calculate the actions based on the waypoints
             actions = target_j - curr_j
+            # actions should be target_j instead of target_j - curr_j?
+            # actions = target_j
             actions = actions.reshape((env._task.num_agents, 6))
             actions = torch.from_numpy(actions)
 
