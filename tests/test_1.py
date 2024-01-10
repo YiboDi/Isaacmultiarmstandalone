@@ -1,6 +1,9 @@
 from omni.isaac.kit import SimulationApp
 
 simulation_app = SimulationApp({"headless": False})
+import sys
+
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/robots')
 
 from ur5 import UR5
 from ur5_view import UR5View
@@ -85,7 +88,7 @@ if __name__ == "__main__":
         
         pos,ori = ur5_list[0].get_world_poses()
 
-        ur5_list[0].set_world_poses(positions = pos + 1, orientations = ori)
+        # ur5_list[0].set_world_poses(positions = pos + 1, orientations = ori)
         new_pos = ur5_list[0].get_world_poses()
             # print(str(agent.ee_link.get_coms()))
             # print(str(agent.ee_link.get_world_poses()))

@@ -62,8 +62,8 @@ class MultiarmTask(BaseTask):
 
         # self.action_scale = 1.0
         # self.action_scale = 7.5
-        self.action_scale = 10.0
-        # self.action_scale = 15.0
+        # self.action_scale = 10.0
+        self.action_scale = 15.0
         self.dt = 1/60 # difference in time between two consecutive states or updates
         self.episode_length = self.config['environment']['episode_length']
         self.progress_buf = 0
@@ -166,7 +166,7 @@ class MultiarmTask(BaseTask):
             if i < self.num_agents:
                 target_pos = self.current_task.target_eff_poses[i][0]
                 target_ori = self.current_task.target_eff_poses[i][1]
-                target_ori = target_ori[[3, 0, 1, 2]]
+                target_ori = target_ori[-1:] + target_ori[:-1]
                 franka = UR5View(prim_paths_expr="/World/Franka/franka{}".format(i), name="franka{}_view".format(i),
                                 target_pos = target_pos,
                                 target_ori = target_ori
@@ -297,7 +297,12 @@ class MultiarmTask(BaseTask):
                 self._franka_list[i].set_joint_positions(torch.tensor(start_config[i]))
                 self._franka_list[i].set_joint_velocities(torch.tensor(dof_vel[i]))
 
-                self._franka_list[i].target.set_world_pose(position = target_eff_poses[i][0], orientation = target_eff_poses[i][1],)
+                # target_eff_poses = target_eff_poses[-1:] + target_eff_poses[:-1]
+                position = target_eff_poses[i][0]
+                orientation = target_eff_poses[i][1]
+                orientation = orientation[-1:] + orientation[:-1]
+
+                self._franka_list[i].target.set_world_pose(position = position, orientation = orientation,)
 
             elif i >= self.num_agents:
                 self._franka_list[i].set_world_poses(positions = torch.tensor([[0,0,-10]]), 
@@ -352,7 +357,28 @@ class MultiarmTask(BaseTask):
         for i, agent in enumerate(sorted_franka_list[0:self.num_agents]):
 
             dof_pos = agent.get_joint_positions()
-            ee_pos, ee_rot = agent.ee.get_world_pose()
+            # set the pos of ee identical to the pos of ee_link
+            
+            ee_pos, ee_rot = agent.ee_link.get_world_poses()[0], agent.ee_link.get_world_poses()[1]
+
+            # test
+            print('for robot{}:'.format(i))
+            # print('position of ee is :' + str(ee_pos) + '\n')
+            print('position of ee_link is :' + str(agent.ee_link.get_world_poses()) )
+            # print('difference value is :' + str(ee_pos - agent.ee_link.get_world_poses()[0]) + '\n')
+            print('position of target is :' + str(agent.target.get_world_pose()) )
+            pos_diff = agent.ee_link.get_world_poses()[0] - agent.target.get_world_pose()[0]
+            pos_delta = np.linalg.norm(pos_diff)
+            ori_diff = agent.ee_link.get_world_poses()[1] - agent.target.get_world_pose()[1]
+            ori_delta = np.linalg.norm(ori_diff)
+
+            print('position difference is :' + str(pos_delta) )
+            print('orientation difference is :' + str(ori_delta) )
+            
+
+
+            agent.ee.set_world_pose(position = ee_pos.squeeze(), orientation = ee_rot.squeeze())
+
             target_eff_pose = agent.target.get_world_pose()
             target_eff_pose = torch.tensor(np.concatenate(target_eff_pose))
             target_eff_pose = torch.cat([target_eff_pose, target_eff_pose]) # observation contains historical frame of 
@@ -389,6 +415,7 @@ class MultiarmTask(BaseTask):
                 self.ob[i, 70:100] = link_position
                 self.ob[i, 100:107] = base_pose
 
+        print('end of one step \n')
 
         return self.ob # observation of a single franka (this_franka), shape of num_agents*ob of a single agent
 
