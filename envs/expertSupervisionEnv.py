@@ -32,6 +32,12 @@ class expertSupervisionEnv(VecEnvBase):
     def set_task(self, task, backend="numpy", sim_params=None, init_sim=True) -> None:
          return super().set_task(task, backend, sim_params, init_sim)
     
+    def step(self, actions):
+         observations, rewards, dones, info = super().step(actions)
+
+         is_terminals = self._task.is_terminals
+
+         return observations, rewards, dones, info, is_terminals
 
     
 
