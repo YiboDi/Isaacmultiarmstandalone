@@ -225,7 +225,7 @@ class Q(BaseNet):
             obs = torch.squeeze(obs, dim=1)
         return self.net(torch.cat((obs, actions), 1))
 
-
+# change it to def create_lstm()
 def create_network(training_config, actor_obs_dim = 107, action_dim = 6, critic_obs_dim = 107):
     policy_net = StochasticActor(
             obs_dim=actor_obs_dim,
@@ -252,3 +252,7 @@ def create_network(training_config, actor_obs_dim = 107, action_dim = 6, critic_
     }
 
     return network
+
+# def create_transformer()
+
+# def create_mlp()

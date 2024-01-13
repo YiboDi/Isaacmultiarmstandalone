@@ -27,7 +27,7 @@ class SAC():
         # self.q1_net = network['Q1']
         # self.q2_net = network['Q2']
         self.policy_key = 'sac_lstm'
-        self.logdir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/checkpoints'
+        self.logdir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/checkpoints' # where are checkpoints saved
         self.network = network
 
         self.device = 'cuda'
@@ -44,7 +44,8 @@ class SAC():
         data_dic = {'observations':[],
                     'actions':[],
                     'rewards':[],
-                    'next_observations':[]}
+                    'next_observations':[],
+                    'is_terminal':[]}
         self.replay_buffer = ReplayBufferDataset(data=data_dic, device=self.device, capacity=capacity)
         # self.train_frequency = 100000
 
@@ -82,12 +83,12 @@ class SAC():
             # "minimum_replay_buffer_freshness": 0.7,
             # "action_scaling": 1
 
-        # self.policy = self.network['policy']().to(self.device)
-        # self.Q1 = self.network['Q1']().to(self.device)
-        # self.Q2 = self.network['Q2']().to(self.device)
-        self.policy = self.network['policy']
-        self.Q1 = self.network['Q1']
-        self.Q2 = self.network['Q2']
+        self.policy = self.network['policy'].to(self.device)
+        self.Q1 = self.network['Q1'].to(self.device)
+        self.Q2 = self.network['Q2'].to(self.device)
+        # self.policy = self.network['policy']
+        # self.Q1 = self.network['Q1']
+        # self.Q2 = self.network['Q2']
 
         self.Q1_target = deepcopy(self.Q1)
         self.Q2_target = deepcopy(self.Q2)
@@ -129,7 +130,7 @@ class SAC():
     def inference(self, observations, 
                 #   deterministic=True
                   ):
-        observations = torch.FloatTensor(observations)
+        # observations = torch.FloatTensor(observations, device = self.device)
         actions, action_logprobs = self.policy(observations, deterministic = self.deterministic, reparametrize = self.reparametrize)
         
         # deterministic or not has already been considered in policy_net
@@ -170,6 +171,11 @@ class SAC():
             if batch is None:
                 train_loader_it = iter(self.train_loader)
                 batch = next(train_loader_it, None)
+            # no idea why dtype of actions becomes float64, which is different from others (float32)
+            # so turn all tensor in batch into float32
+            for i in range(len(batch)):
+                batch[i] = batch[i].to(dtype = torch.float32)
+
             policy_loss, q1_loss, q2_loss, policy_entropy, policy_value = \
                 self.train_batch(batch=batch)
             policy_loss_sum += policy_loss
@@ -232,14 +238,14 @@ class SAC():
         rewards = torch.unsqueeze(rewards, dim=1)
         terminals = torch.unsqueeze(terminals, dim=1)
 
-        new_obs_actions, new_obs_action_logprobs = self.policy_net(
+        new_obs_actions, new_obs_action_logprobs = self.policy(
             obs=obs,
             deterministic=False,
             reparametrize=self.reparametrize)
         new_obs_action_logprobs = torch.unsqueeze(
             new_obs_action_logprobs, dim=1)
 
-        new_next_obs_action, next_obs_action_logprobs = self.policy_net(
+        new_next_obs_action, next_obs_action_logprobs = self.policy(
             obs=next_obs,
             deterministic=False,
             reparametrize=self.reparametrize)
@@ -247,9 +253,9 @@ class SAC():
             next_obs_action_logprobs, dim=1)
 
         q_new_actions = torch.min(
-            self.q1_net(obs=critic_obs, actions=new_obs_actions *
+            self.Q1(obs=critic_obs, actions=new_obs_actions *
                     self.action_scaling),
-            self.q2_net(obs=critic_obs, actions=new_obs_actions *
+            self.Q2(obs=critic_obs, actions=new_obs_actions *
                     self.action_scaling))
 
         # Train policy
@@ -261,9 +267,9 @@ class SAC():
         self.policy_opt.step()
 
         # Train Q networks
-        q1_pred = self.q1_net(obs=critic_obs, actions=actions *
+        q1_pred = self.Q1(obs=critic_obs, actions=actions *
                           self.action_scaling)
-        q2_pred = self.q2_net(obs=critic_obs, actions=actions *
+        q2_pred = self.Q2(obs=critic_obs, actions=actions *
                           self.action_scaling)
 
         target_q_values = torch.min(

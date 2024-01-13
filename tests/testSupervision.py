@@ -14,11 +14,15 @@ import json
 from expertSupervisionEnv import expertSupervisionEnv, angle
 from numpy.linalg import norm
 import numpy as np
+import os
 
 
 from BaseNet import create_network
 
 num_episodes = 75000  # Define the number of episodes for testing
+# rather than define a number, num_episode should be up to number of tasks used as training data
+training_data = os.listdir('/home/tp2/papers/multiarm_dataset/tasks')
+num_episodes = len(training_data)*2-5
 
 env = expertSupervisionEnv()
 
@@ -127,7 +131,7 @@ for episode in range(num_episodes):
             actions = torch.from_numpy(actions)
 
         # Step through the environment
-        next_observations, rewards, done, info = env.step(actions)
+        next_observations, rewards, done, info, is_terminals = env.step(actions)
 
         # why squeeze?
         # data_dic = {
@@ -141,9 +145,10 @@ for episode in range(num_episodes):
                 'observations' : [row for i, row in enumerate(observations)],
                 'actions' : [row for i, row in enumerate(actions)],
                 'rewards' : [row for i, row in enumerate(rewards)], 
-                'next_observations' : [row for i, row in enumerate(next_observations)]
+                'next_observations' : [row for i, row in enumerate(next_observations)],
+                'is_terminal' : [row for i, row in enumerate(is_terminals)]
             }
-        model.replay_buffer.extend(data_dic) # rewards may not be torch tensor
+        model.replay_buffer.extend(data_dic) # rewards are not torch tensor, but when using in training, loaded as torch tensor
         
         # seems unnecessary, because at the start of each loop, observation will be got from Isaac
         observations = next_observations

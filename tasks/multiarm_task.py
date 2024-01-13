@@ -124,10 +124,10 @@ class MultiarmTask(BaseTask):
         self._num_actions = self._num_action * self.current_task.ur5_count # num of actions in single env
 
         # a few class buffers to store RL-related states
-        self.ob = torch.zeros((self.num_agents, self._num_observation))
-        self.obs = torch.zeros((self.num_agents, self.num_agents, self._num_observation))
+        self.ob = torch.zeros((self.num_agents, self._num_observation), device=self._device)
+        self.obs = torch.zeros((self.num_agents, self.num_agents, self._num_observation), device=self._device)
         # self.resets = torch.zeros((self._num_envs, 1))
-        self.resets = torch.zeros((1))
+        self.resets = torch.zeros((1), device=self._device)
 
         # set the action and observation space for RL
         # self.action_space = spaces.Box(np.ones(self._num_actions) * -1.0, np.ones(self._num_actions) * 1.0)  #[-1, +1]
@@ -144,6 +144,9 @@ class MultiarmTask(BaseTask):
 
         # dof_limits = self._franka_list[0].get_dof_limits()
         # self.franka_dof_lower_limits = dof_limits[0, :, 0].to(device=self._device)
+
+        # add is_terminals to check if a individual robot terminate (collide or reach its target)
+        self.is_terminals = torch.zeros((self.num_agents), device=self._device)
 
 
 
@@ -263,9 +266,11 @@ class MultiarmTask(BaseTask):
         self._num_observations = self._num_observation * self.current_task.ur5_count
         self._num_actions = self._num_action * self.current_task.ur5_count
 
-        self.ob = torch.zeros((self.num_agents, self._num_observation))
-        self.obs = torch.zeros((self.num_agents, self.num_agents, self._num_observation))
+        self.ob = torch.zeros((self.num_agents, self._num_observation), device=self._device)
+        self.obs = torch.zeros((self.num_agents, self.num_agents, self._num_observation), device=self._device)
         self.actions = torch.zeros((self.num_agents, self._num_action), device=self._device)
+
+        self.is_terminals = torch.zeros((self.num_agents), device=self._device)
 
         # reset the action and observation space for RL
         # self.action_space = spaces.Box(np.ones(self._num_actions) * -1.0, np.ones(self._num_actions) * 1.0)  #[-1, +1]
@@ -473,6 +478,8 @@ class MultiarmTask(BaseTask):
 
                 if contact:
                     print('collision happens with link at path:' + str(link.prims)) # or link.prims
+                    # set the is_terminal to be 1
+                    self.is_terminals[self._franka_list.index(agent)] = 1
                     return 1
             
         return 0 
@@ -493,13 +500,14 @@ class MultiarmTask(BaseTask):
         pos_delta = np.linalg.norm(agent.ee_link.get_world_poses()[0] - agent.target.get_world_pose()[0])
         ori_delta = np.linalg.norm(agent.ee_link.get_world_poses()[1] - agent.target.get_world_pose()[1])
         if pos_delta < self.position_tolerance and ori_delta < self.orientation_tolerance:
+            # the agent terminates if reaches its target
+            self.is_terminals[self._franka_list.index(agent)] = 1
             return 1
         else:
             return 0
 
 
-    def calculate_metrics(self) -> None:
-
+    def calculate_metrics(self) -> None: # calculate the rewards in each env.step()
 
         # collision_penalties = np.array(self.collision_penalty if self.check_collision() else 0)
         collision_penalties = np.zeros(self.num_agents)
@@ -510,6 +518,8 @@ class MultiarmTask(BaseTask):
                 collision = self.check_collision(agent=agent)
                 if collision == 1:
                     collision_penalties[i] = self.collision_penalty
+                    # # also set is_terminal to 1
+                    # self.is_terminals[i] = 1
                 elif collision == 0:
                     collision_penalties[i] = 0
                 else:
