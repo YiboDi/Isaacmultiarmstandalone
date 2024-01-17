@@ -58,7 +58,7 @@ class BaseNet(nn.Module):
                 else:
                     self.init_hidden_fn = lambda batch_size, device:\
                         init_zero_hidden_fn(batch_size, device)
-            elif self.network_config['initial_hidden_state'] == 'parameter':
+            elif self.network_config['initial_hidden_state'] == 'parameter': # false
                 self.init_h = nn.Parameter(
                     torch.randn(
                         self.num_layers,
@@ -89,7 +89,7 @@ class BaseNet(nn.Module):
 
     def get_layers(self):
         mlp_input_dim = self.get_mlp_input_dim()
-        if len(self.network_config['mlp_layers']) == 0:
+        if len(self.network_config['mlp_layers']) == 0: # false
             return [nn.Linear(mlp_input_dim, self.output_dim)]
         else:
             layers = [
@@ -110,12 +110,12 @@ class BaseNet(nn.Module):
                     self.output_dim))
         return layers
 
-    def process_sequence(self, input): # input = obs with shape N * 107
+    def process_sequence(self, input): # input = obs with shape N * 107-wrong, shape should be 1*N*107
         self.seq_net.flatten_parameters()
         _, h_t = self.seq_net(
             input,
             self.init_hidden_fn(
-                batch_size=input.size(0), # batch_size = number of ur5
+                batch_size=input.size(0), # batch_size = number of ur5-wrong, batch size here should be 1
                 device=input.device))
         if self.seq_net_class == nn.LSTM:
             (h_t, _) = h_t
@@ -129,7 +129,7 @@ class BaseNet(nn.Module):
 
 class StochasticActor(BaseNet):
     def __init__(self,
-                 obs_dim, # input of obs_dim is that of a single ur5
+                 obs_dim, # input of obs_dim is that of a single ur5 = 107
                  action_dim,
                  action_variance_bounds,
                  network_config):
@@ -143,7 +143,7 @@ class StochasticActor(BaseNet):
 
         super(StochasticActor, self).__init__(
             input_dim=obs_dim,
-            output_dim=action_dim * 2,
+            output_dim=action_dim * 2, # mean and varience
             network_config=network_config)
 
     def get_layers(self):
@@ -226,32 +226,32 @@ class Q(BaseNet):
         return self.net(torch.cat((obs, actions), 1))
 
 # change it to def create_lstm()
-def create_network(training_config, actor_obs_dim = 107, action_dim = 6, critic_obs_dim = 107):
-    policy_net = StochasticActor(
-            obs_dim=actor_obs_dim,
-            action_dim=action_dim,
-            action_variance_bounds=training_config['action_variance'],
-            network_config=training_config['network']['actor'])
+# def create_network(training_config, actor_obs_dim = 107, action_dim = 6, critic_obs_dim = 107):
+#     policy_net = StochasticActor(
+#             obs_dim=actor_obs_dim,
+#             action_dim=action_dim,
+#             action_variance_bounds=training_config['action_variance'],
+#             network_config=training_config['network']['actor'])
     
-    Q1 = Q(obs_dim=critic_obs_dim + 6
-                 if training_config['centralized_critic'] # default to be false
-                 else critic_obs_dim, 
-                 action_dim=action_dim,
-                 network_config=training_config['network']['critic'])
+#     Q1 = Q(obs_dim=critic_obs_dim + 6
+#                  if training_config['centralized_critic'] # default to be false
+#                  else critic_obs_dim, 
+#                  action_dim=action_dim,
+#                  network_config=training_config['network']['critic'])
     
-    Q2 = Q(obs_dim=critic_obs_dim + 6
-                 if training_config['centralized_critic'] # default to be false
-                 else critic_obs_dim, 
-                 action_dim=action_dim,
-                 network_config=training_config['network']['critic'])
+#     Q2 = Q(obs_dim=critic_obs_dim + 6
+#                  if training_config['centralized_critic'] # default to be false
+#                  else critic_obs_dim, 
+#                  action_dim=action_dim,
+#                  network_config=training_config['network']['critic'])
     
-    network = {
-        'policy':policy_net,
-        'Q1' : Q1,
-        'Q2' : Q2,
-    }
+#     network = {
+#         'policy':policy_net,
+#         'Q1' : Q1,
+#         'Q2' : Q2,
+#     }
 
-    return network
+#     return network
 
 # def create_transformer()
 
