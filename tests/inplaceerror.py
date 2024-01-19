@@ -52,6 +52,8 @@ for episode in range(num_episodes):
         #Select an action
         observations = env._task.get_observations() # num_robots * num_robots * 107
         # actions = []
+        zero_tensor = torch.zeros((env._task.num_agents, 4-env._task.num_agents, 107), device = 'cuda')
+        observations = torch.cat((observations, zero_tensor), dim = 1) # size [n,4,107]
 
         # for i in range(observations.shape[0]):
         #     observation = observations[i].squeeze(0)
@@ -64,6 +66,7 @@ for episode in range(num_episodes):
         actions = actions.reshape(env._task.num_agents, 6) # num_robots * num_robots *
         # Step through the environment
         next_observations, rewards, done, info, is_terminals = env.step(actions)
+        next_observations = torch.cat((next_observations, zero_tensor), dim = 1)
 
         # for i in range(next_observations.shape[0]):
         data_dic = {

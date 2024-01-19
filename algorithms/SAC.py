@@ -14,7 +14,7 @@ sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/mult
 
 from ReplayBuffer import ReplayBufferDataset
 from tensorboardX import SummaryWriter
-import time
+from time import time
 
 class SAC():
     def __init__(self, 
@@ -138,19 +138,21 @@ class SAC():
                   ):
         # observations = torch.FloatTensor(observations, device = self.device)
         # should spilt observations into observation here and input observation one by one into policy
-        # actions, action_logprobs = self.policy(observations, deterministic = self.deterministic, reparametrize = self.reparametrize)
-        observations = torch.chunk(observations, observations.size(0), dim=0)
-        for i, observation in enumerate(observations):
-            # observation = observation.squeeze(0)
-            action, action_logprob = self.policy(observation, deterministic = self.deterministic, reparametrize = self.reparametrize)
-            if i == 0:
-                actions = action
-                if self.deterministic == False:
-                    action_logprobs = action_logprob
-            else:
-                actions = torch.cat((actions, action), dim=0)
-                if self.deterministic == False:
-                    action_logprobs = torch.cat((action_logprobs, action_logprob), dim=0)
+
+        actions, action_logprobs = self.policy(observations, deterministic = self.deterministic, reparametrize = self.reparametrize)
+        actions = actions.detach()
+        # observations = torch.chunk(observations, observations.size(0), dim=0)
+        # for i, observation in enumerate(observations):
+        #     # observation = observation.squeeze(0)
+        #     action, action_logprob = self.policy(observation, deterministic = self.deterministic, reparametrize = self.reparametrize)
+        #     if i == 0:
+        #         actions = action
+        #         if self.deterministic == False:
+        #             action_logprobs = action_logprob
+        #     else:
+        #         actions = torch.cat((actions, action), dim=0)
+        #         if self.deterministic == False:
+        #             action_logprobs = torch.cat((action_logprobs, action_logprob), dim=0)
         # deterministic or not has already been considered in policy_net
         # if deterministic == True:
         #     action = mean
@@ -194,8 +196,9 @@ class SAC():
                 batch = next(train_loader_it, None)
             # no idea why dtype of actions becomes float64, which is different from others (float32)
             # so turn all tensor in batch into float32
-            # for i in range(len(batch)):
-            #     batch[i] = batch[i].to(dtype = torch.float32)
+            for i in range(len(batch)):
+                if batch[i].dtype == torch.float64:
+                    batch[i] = batch[i].to(dtype = torch.float32)
 
             policy_loss, q1_loss, q2_loss, policy_entropy, policy_value = \
                 self.train_batch(batch=batch)
@@ -217,25 +220,25 @@ class SAC():
         policy_entropy_sum /= self.num_updates_per_train
         policy_value_sum /= self.num_updates_per_train
 
-        self.writer.add_scalars({
-            'Training/Policy_Loss': policy_loss_sum,
-            'Training/Policy_Entropy': policy_entropy_sum,
-            'Training/Policy_Value': policy_value_sum,
-            'Training/Q1_Loss': q1_loss_sum,
-            'Training/Q2_Loss': q2_loss_sum,
-            'Training/Freshness': self.replay_buffer.freshness,
-        })
+        # self.writer.add_scalars({
+        #     'Training/Policy_Loss': policy_loss_sum,
+        #     'Training/Policy_Entropy': policy_entropy_sum,
+        #     'Training/Policy_Value': policy_value_sum,
+        #     'Training/Q1_Loss': q1_loss_sum,
+        #     'Training/Q2_Loss': q2_loss_sum,
+        #     'Training/Freshness': self.replay_buffer.freshness,
+        # }, self.stats['time_steps'])
 
-        output = "\r[SAC] pi: {0:.4f} | pi_entropy: {1:.4f}".format(
-            policy_loss_sum, policy_entropy_sum)
-        output += "| pi_value: {0:.4f} ".format(policy_value_sum)
-        output += "| Q1: {0:.4f} | Q2: {1:.4f} ".format(
-            q1_loss_sum, q2_loss_sum)
-        output += "| freshness: {0:.3f} ".format(self.replay_buffer.freshness)
-        output += "| time: {0:.2f}".format(
-            float(time() - self.prev_update_time))
-        print(output, end='')
-        self.prev_update_time = time()
+        # output = "\r[SAC] pi: {0:.4f} | pi_entropy: {1:.4f}".format(
+        #     policy_loss_sum, policy_entropy_sum)
+        # output += "| pi_value: {0:.4f} ".format(policy_value_sum)
+        # output += "| Q1: {0:.4f} | Q2: {1:.4f} ".format(
+        #     q1_loss_sum, q2_loss_sum)
+        # output += "| freshness: {0:.3f} ".format(self.replay_buffer.freshness)
+        # output += "| time: {0:.2f}".format(
+        #     float(time() - self.prev_update_time))
+        # print(output, end='')
+        # self.prev_update_time = time()
         self.replay_buffer.freshness = 0.0
 
     def update_targets(self):
@@ -250,7 +253,7 @@ class SAC():
     def train_batch(self, batch):
         if len(batch) == 5:
             obs, actions, rewards, next_obs, terminals = batch
-            obs, next_obs = obs.squeeze(dim = 1), next_obs.squeeze(dim = 1)
+            # obs, next_obs = obs.squeeze(dim = 1), next_obs.squeeze(dim = 1)
             critic_obs = obs
             critic_next_obs = next_obs
         else:
@@ -302,9 +305,10 @@ class SAC():
                 self.Q2_target(critic_next_obs, new_next_obs_action *
                             self.action_scaling)) \
                 - (self.alpha * next_obs_action_logprobs)
-            # with torch.no_grad():
-            q_target = self.reward_scale * rewards + (1. - terminals) * \
+            with torch.no_grad():
+                q_target = self.reward_scale * rewards + (1. - terminals) * \
                     self.discount * target_q_values
+            # q_target = q_target.detach()
                 
             q1_pred = self.Q1(obs=critic_obs, actions=actions *
                             self.action_scaling)

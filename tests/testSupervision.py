@@ -146,10 +146,10 @@ for episode in range(num_episodes):
         #     }
         
         data_dic = {
-                'observations' : [row.unsqueeze(0) for i, row in enumerate(observations)], # observation should be 1*n*107
+                'observations' : [row for i, row in enumerate(observations)], # observation should be 1*n*107
                 'actions' : [row for i, row in enumerate(actions)],
                 'rewards' : [row for i, row in enumerate(rewards)], 
-                'next_observations' : [row.unsqueeze(0) for i, row in enumerate(next_observations)],
+                'next_observations' : [row for i, row in enumerate(next_observations)],
                 'is_terminal' : [row for i, row in enumerate(is_terminals)]
             }
         model.replay_buffer.extend(data_dic) # rewards are not torch tensor, but when using in training, loaded as torch tensor

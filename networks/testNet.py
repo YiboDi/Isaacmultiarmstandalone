@@ -6,7 +6,7 @@ from torch.distributions import MultivariateNormal
 class testpolicy(nn.Module):
     def __init__(self):
         super().__init__()
-        self.flatten = nn.Flatten()
+        self.flatten = nn.Flatten(start_dim=1)
         self.feature_extractor = nn.Sequential(
             nn.Linear(4*107, 256),
             nn.Tanh()
@@ -25,8 +25,8 @@ class testpolicy(nn.Module):
         actions = None
         action_logprobs = None
         obs = self.flatten(obs)
-        obs = torch.zeros(4*107)
-        obs[:obs.size(0)] = obs
+        # obs = torch.zeros(4, 4*107)
+        # obs[:obs.size(0)] = obs
         obs = obs.to('cuda')
         obs = self.feature_extractor(obs)     
         output = self.mlp(obs) # dim of output is 1, size is 12
@@ -67,7 +67,7 @@ class testpolicy(nn.Module):
 class testq(nn.Module):
     def __init__(self):
         super().__init__()
-        self.flatten = nn.Flatten()
+        self.flatten = nn.Flatten(start_dim=1)
         self.feature_extractor = nn.Sequential(
             nn.Linear(4*107, 256),
             nn.Tanh()
@@ -82,10 +82,11 @@ class testq(nn.Module):
         )
     def forward(self, obs, actions):
         obs = self.flatten(obs)
-        obs = torch.zeros(4*107)
-        obs[:obs.size(0)] = obs
+        # obs = torch.zeros(4*107)
+        # obs[:obs.size(0)] = obs
+        obs = obs.to('cuda')
         obs = self.feature_extractor(obs)
-        actions = actions.squeeze(0)
-        input = torch.cat((obs, actions), dim=0)
+        # actions = actions.squeeze(0)
+        input = torch.cat((obs, actions), dim=1)
         logits = self.mlp(input)
         return logits
