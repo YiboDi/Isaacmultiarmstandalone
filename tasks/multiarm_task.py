@@ -359,6 +359,7 @@ class MultiarmTask(BaseTask):
         pos = np.array(this_franka.get_world_poses()[0]) # the base position of this_franka
         sorted_franka_list = sorted(self._franka_list[:self.num_agents], reverse=True, key=lambda agent: 
                                     np.linalg.norm(pos - np.array(agent.get_world_poses()[0]))) # get_world_poses() should return tensor with two element: position and orientation
+        ob = torch.zeros((self.num_agents, self._num_observation), device = self._device) 
         for i, agent in enumerate(sorted_franka_list[0:self.num_agents]):
 
             dof_pos = agent.get_joint_positions()
@@ -397,29 +398,29 @@ class MultiarmTask(BaseTask):
 
             if self.progress_buf == 1:
             # if self.ob == torch.zeros((self.num_agents, self._num_observation)): # if first step (no history yet)
-                self.ob[i, 0:6] = dof_pos
-                self.ob[i, 6:12] = dof_pos
-                self.ob[i, 12:15] = ee_pos
-                self.ob[i, 15:19] = ee_rot
-                self.ob[i, 19:22] = ee_pos
-                self.ob[i, 22:26] = ee_rot
-                self.ob[i, 26:40] = target_eff_pose # 7*2
-                self.ob[i, 40:70] = link_position
-                self.ob[i, 70:100] = link_position
-                self.ob[i, 100:107] = base_pose
+                ob[i, 0:6] = dof_pos
+                ob[i, 6:12] = dof_pos
+                ob[i, 12:15] = ee_pos
+                ob[i, 15:19] = ee_rot
+                ob[i, 19:22] = ee_pos
+                ob[i, 22:26] = ee_rot
+                ob[i, 26:40] = target_eff_pose # 7*2
+                ob[i, 40:70] = link_position
+                ob[i, 70:100] = link_position
+                ob[i, 100:107] = base_pose
 
             else:
-                self.ob[i, 0:6] = self.ob[i, 6:12]
-                self.ob[i, 6:12] = dof_pos
-                self.ob[i, 12:15] = self.ob[i, 19:22]
-                self.ob[i, 15:19] = self.ob[i, 22:26]
-                self.ob[i, 19:22] = ee_pos
-                self.ob[i, 22:26] = ee_rot
-                self.ob[i, 26:40] = target_eff_pose # 7*2
-                self.ob[i, 40:70] = self.ob[i, 70:100]
-                self.ob[i, 70:100] = link_position
-                self.ob[i, 100:107] = base_pose
-
+                ob[i, 0:6] = self.ob[i, 6:12]
+                ob[i, 6:12] = dof_pos
+                ob[i, 12:15] = self.ob[i, 19:22]
+                ob[i, 15:19] = self.ob[i, 22:26]
+                ob[i, 19:22] = ee_pos
+                ob[i, 22:26] = ee_rot
+                ob[i, 26:40] = target_eff_pose # 7*2
+                ob[i, 40:70] = self.ob[i, 70:100]
+                ob[i, 70:100] = link_position
+                ob[i, 100:107] = base_pose
+        self.ob = ob.clone()
         print('end of one step \n')
 
         return self.ob # observation of a single franka (this_franka), shape of num_agents*ob of a single agent
@@ -430,11 +431,11 @@ class MultiarmTask(BaseTask):
         
         # firstly sort the self._franka_list by base distance, furthest to closest.
 
-
+        obs = torch.zeros((self.num_agents, self.num_agents, self._num_observation), device = self._device)
         for i, agent in enumerate(self._franka_list[0:self.num_agents]):
 
             
-            self.obs[i, :, :] = self.get_observation(this_franka=agent)
+            obs[i, :, :] = self.get_observation(this_franka=agent)
 
 
             # hand_pos, hand_rot = agent._hands.get_world_poses()
@@ -446,7 +447,7 @@ class MultiarmTask(BaseTask):
             #     raise ValueError('dim of observation does not match')
             
             # self.obs[i,:] = torch.cat(dof_pos, hand_pos, hand_rot) # shape of self.obs is num_robots * (num_joint_pos * num_joint_vel)
-
+        self.obs = obs.clone()
 
         return self.obs # observation of the whole system, shape of num_agents*num_agents*ob of a single agent(107)
 

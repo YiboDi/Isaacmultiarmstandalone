@@ -19,7 +19,8 @@ from BaseNet import StochasticActor, Q
 import json
 
 
-from BaseNet import create_network
+# from BaseNet import create_network
+from net_utils import create_testnet
 
 # if __name__ == 'main':
 num_episodes = 75000  # Define the number of episodes for testing
@@ -36,7 +37,9 @@ with open(file_path, 'r') as file:
     config = json.load(file)
     training_config = config['training']
 
-network = create_network(training_config=training_config)
+network = create_testnet()
+# network = network.to('cuda')
+print(network)
 model = SAC(network=network)
 
 for episode in range(num_episodes):
@@ -58,7 +61,7 @@ for episode in range(num_episodes):
         # actions = torch.cat(actions, dim=0)
 
         actions = model.inference(observations) # input in network has shape of batch_size * seq_len * input_size = num_robots * num_robots * 107
-
+        actions = actions.reshape(env._task.num_agents, 6) # num_robots * num_robots *
         # Step through the environment
         next_observations, rewards, done, info, is_terminals = env.step(actions)
 

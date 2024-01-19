@@ -17,7 +17,8 @@ import numpy as np
 import os
 
 
-from BaseNet import create_network
+# from BaseNet import create_network
+from net_utils import create_lstm
 
 num_episodes = 75000  # Define the number of episodes for testing
 # rather than define a number, num_episode should be up to number of tasks used as training data
@@ -37,8 +38,11 @@ with open(file_path, 'r') as file:
     config = json.load(file)
     training_config = config['training']
 
-network = create_network(training_config=training_config)
+network = create_lstm(training_config=training_config)
+print(network)
 model = SAC(network=network)
+
+torch.autograd.set_detect_anomaly(True)
 
 for episode in range(num_episodes):
     observations = env.reset()
@@ -50,7 +54,7 @@ for episode in range(num_episodes):
 
         # mode = env.mode
 
-        observations = env._task.get_observations() # num_robots * num_robots * 107
+        observations = env._task.get_observations().clone() # num_robots * num_robots * 107
         # with normal mode, take an action which NN output.
         if mode == 'normal':
             print(env._task.current_task.id)
@@ -72,7 +76,7 @@ for episode in range(num_episodes):
             curr_j = torch.empty(env._task.num_agents * 6,) 
             for i, agent in enumerate(env._task._franka_list[0:env._task.num_agents]):
                 dof = agent.get_joint_positions()
-                curr_j[i*6:i*6+6] = dof
+                curr_j[i*6:i*6+6] = dof.clone()
             curr_j = curr_j.numpy()
 
             # find the nearest wp in expert_waypoints and set it as next_wp and its idx to be next_wp_idx
@@ -128,7 +132,7 @@ for episode in range(num_episodes):
             # actions should be target_j instead of target_j - curr_j?
             # actions = target_j
             actions = actions.reshape((env._task.num_agents, 6))
-            actions = torch.from_numpy(actions)
+            actions = torch.from_numpy(actions).clone()
 
         # Step through the environment
         next_observations, rewards, done, info, is_terminals = env.step(actions)
@@ -142,10 +146,10 @@ for episode in range(num_episodes):
         #     }
         
         data_dic = {
-                'observations' : [row for i, row in enumerate(observations)],
+                'observations' : [row.unsqueeze(0) for i, row in enumerate(observations)], # observation should be 1*n*107
                 'actions' : [row for i, row in enumerate(actions)],
                 'rewards' : [row for i, row in enumerate(rewards)], 
-                'next_observations' : [row for i, row in enumerate(next_observations)],
+                'next_observations' : [row.unsqueeze(0) for i, row in enumerate(next_observations)],
                 'is_terminal' : [row for i, row in enumerate(is_terminals)]
             }
         model.replay_buffer.extend(data_dic) # rewards are not torch tensor, but when using in training, loaded as torch tensor

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Normal
+# from torchviz import make_dot
 
 from copy import deepcopy
 
@@ -49,15 +50,20 @@ class SAC():
         self.replay_buffer = ReplayBufferDataset(data=data_dic, device=self.device, capacity=capacity)
         # self.train_frequency = 100000
 
+        # modify batch size for test
         # self.batch_size = 256
-        self.batch_size = 4096 #(Typically 64-256 for SAC algorithms)
+        # self.batch_size = 4096 #(Typically 64-256 for SAC algorithms), 4096 from default setting
+        self.batch_size = 3
+
         self.num_updates_per_train = 10 #train_epoch() for 10 times each train()
         # self.tau = 0.05
         self.tau = 0.001
 
         self.last_train_size = 0
-        # self.warmup_steps = 100000
-        self.warmup_steps = 20000
+        # learn at start for test
+        self.warmup_steps = 10
+
+        # self.warmup_steps = 20000
         self.minimum_replay_buffer_freshness = 0.7
         self.discount = 0.99
         self.alpha = 0.001
@@ -131,8 +137,20 @@ class SAC():
                 #   deterministic=True
                   ):
         # observations = torch.FloatTensor(observations, device = self.device)
-        actions, action_logprobs = self.policy(observations, deterministic = self.deterministic, reparametrize = self.reparametrize)
-        
+        # should spilt observations into observation here and input observation one by one into policy
+        # actions, action_logprobs = self.policy(observations, deterministic = self.deterministic, reparametrize = self.reparametrize)
+        observations = torch.chunk(observations, observations.size(0), dim=0)
+        for i, observation in enumerate(observations):
+            # observation = observation.squeeze(0)
+            action, action_logprob = self.policy(observation, deterministic = self.deterministic, reparametrize = self.reparametrize)
+            if i == 0:
+                actions = action
+                if self.deterministic == False:
+                    action_logprobs = action_logprob
+            else:
+                actions = torch.cat((actions, action), dim=0)
+                if self.deterministic == False:
+                    action_logprobs = torch.cat((action_logprobs, action_logprob), dim=0)
         # deterministic or not has already been considered in policy_net
         # if deterministic == True:
         #     action = mean
@@ -153,6 +171,9 @@ class SAC():
         # Compute policy loss, Q1 and Q2 loss
         # Update policy, Q1 and Q2 networks using optimizers
         # Optional: update target networks using polyak averaging
+
+        torch.autograd.set_detect_anomaly(True)
+
         policy_loss_sum = 0.0
         q1_loss_sum = 0.0
         q2_loss_sum = 0.0
@@ -173,8 +194,8 @@ class SAC():
                 batch = next(train_loader_it, None)
             # no idea why dtype of actions becomes float64, which is different from others (float32)
             # so turn all tensor in batch into float32
-            for i in range(len(batch)):
-                batch[i] = batch[i].to(dtype = torch.float32)
+            # for i in range(len(batch)):
+            #     batch[i] = batch[i].to(dtype = torch.float32)
 
             policy_loss, q1_loss, q2_loss, policy_entropy, policy_value = \
                 self.train_batch(batch=batch)
@@ -229,6 +250,7 @@ class SAC():
     def train_batch(self, batch):
         if len(batch) == 5:
             obs, actions, rewards, next_obs, terminals = batch
+            obs, next_obs = obs.squeeze(dim = 1), next_obs.squeeze(dim = 1)
             critic_obs = obs
             critic_next_obs = next_obs
         else:
@@ -263,35 +285,56 @@ class SAC():
                        q_new_actions).mean()
 
         self.policy_opt.zero_grad()
-        policy_loss.backward(retain_graph=True)
+        # policy_loss.backward(retain_graph=True)
+        policy_loss.backward()
         self.policy_opt.step()
 
         # Train Q networks
-        q1_pred = self.Q1(obs=critic_obs, actions=actions *
-                          self.action_scaling)
-        q2_pred = self.Q2(obs=critic_obs, actions=actions *
-                          self.action_scaling)
+        with torch.autograd.set_detect_anomaly(True):
+            # q1_pred = self.Q1(obs=critic_obs, actions=actions *
+            #                 self.action_scaling)
+            # q2_pred = self.Q2(obs=critic_obs, actions=actions *
+            #                 self.action_scaling)
 
-        target_q_values = torch.min(
-            self.Q1_target(critic_next_obs, new_next_obs_action *
-                           self.action_scaling),
-            self.Q2_target(critic_next_obs, new_next_obs_action *
-                           self.action_scaling)) \
-            - (self.alpha * next_obs_action_logprobs)
-        with torch.no_grad():
+            target_q_values = torch.min(
+                self.Q1_target(critic_next_obs, new_next_obs_action *
+                            self.action_scaling),
+                self.Q2_target(critic_next_obs, new_next_obs_action *
+                            self.action_scaling)) \
+                - (self.alpha * next_obs_action_logprobs)
+            # with torch.no_grad():
             q_target = self.reward_scale * rewards + (1. - terminals) * \
-                self.discount * target_q_values
+                    self.discount * target_q_values
+                
+            q1_pred = self.Q1(obs=critic_obs, actions=actions *
+                            self.action_scaling)
+            for name, param in self.Q1.named_parameters():
+                print(f'{name}: shape={param.shape}, dtype={param.dtype}, version={param._version}')
+            # dot = make_dot(q1_pred, params=dict(self.Q1.named_parameters()))
+            # dot.view()
+            q2_pred = self.Q2(obs=critic_obs, actions=actions *
+                            self.action_scaling)
 
-        q1_loss = self.Q_criterion(q1_pred, q_target)
-        q2_loss = self.Q_criterion(q2_pred, q_target)
+            q1_loss = self.Q_criterion(q1_pred, q_target)
+            for name, param in self.Q1.named_parameters():
+                print(f'{name}: shape={param.shape}, dtype={param.dtype}, version={param._version}')
+            q2_loss = self.Q_criterion(q2_pred, q_target)
 
-        self.Q1_opt.zero_grad()
-        q1_loss.backward(retain_graph=True)
-        self.Q1_opt.step()
+            # test
+            # critic_loss = q1_loss + q2_loss
+            # self.critic_opt.zero_grad()
 
-        self.Q2_opt.zero_grad()
-        q2_loss.backward()
-        self.Q2_opt.step()
+            self.Q1_opt.zero_grad()
+            for name, param in self.Q1.named_parameters():
+                print(f'{name}: shape={param.shape}, dtype={param.dtype}, version={param._version}')
+            # q1_pred.backward(retain_graph=True)
+            # q1_loss.backward(retain_graph=True)
+            q1_loss.backward()
+            self.Q1_opt.step()
+
+            self.Q2_opt.zero_grad()
+            q2_loss.backward()
+            self.Q2_opt.step()
 
         return (
             policy_loss.item(),

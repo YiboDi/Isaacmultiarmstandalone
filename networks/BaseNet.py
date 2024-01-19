@@ -124,7 +124,7 @@ class BaseNet(nn.Module):
     def forward(self, input):
         if self.sequence_input:
             input = self.process_sequence(input) # input = obs with shape N * 107
-        return self.net(input)
+        return self.net(input) # self.net is mlp
 
 
 class StochasticActor(BaseNet):
