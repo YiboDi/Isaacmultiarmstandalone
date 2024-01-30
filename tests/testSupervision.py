@@ -15,6 +15,7 @@ from expertSupervisionEnv import expertSupervisionEnv, angle
 from numpy.linalg import norm
 import numpy as np
 import os
+from tensorboardX import SummaryWriter
 
 
 # from BaseNet import create_network
@@ -39,16 +40,23 @@ with open(file_path, 'r') as file:
     training_config = config['training']
 
 network = create_lstm(training_config=training_config)
-print(network)
-model = SAC(network=network)
+# print(network)
+# modify for each experiment
+experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/experiments/01.29ordermodified'
+log_dir = experiment_dir + '/logs'
+# checkpoint_dir = experiment_dir + '/checkpoints'
+model = SAC(network=network, experiment_dir=experiment_dir,
+            load_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/experiments/01.24/checkpoints/ckpt_sac_lstm_00337')
+writer = SummaryWriter(log_dir=log_dir)
 
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 
 for episode in range(num_episodes):
     observations = env.reset()
     done = False
 
     mode = env.mode
+    cumulative_reward = 0
 
     while not done:
 
@@ -56,11 +64,15 @@ for episode in range(num_episodes):
 
         observations = env._task.get_observations().clone() # num_robots * num_robots * 107
         # with normal mode, take an action which NN output.
-        if mode == 'normal':
-            print(env._task.current_task.id)
+        if env._task.mode == 'normal':
+            # print(env._task.current_task.id)
             actions = model.inference(observations) # input in network has shape of batch_size * seq_len * input_size = num_robots * num_robots * 107
+            # writer = SummaryWriter(log_dir)
+            # writer.add_scalar('reward', env._task., episode)
+            
+
         # with supervision mode, take an action based on expert_waypoints
-        elif mode == 'supervision':
+        elif env._task.mode == 'supervision':
             #load waypoints
             # if expert_waypoints == None or next_wp_idx != None and next_wp_idx >= len(expert_waypoints):
             #     expert_waypoints = env.load_expert_waypoints_for_task(
@@ -106,7 +118,7 @@ for episode in range(num_episodes):
             while True: 
                 target_j = expert_waypoints[target_wp_idx]
                 target_dir_j = target_j - curr_j
-                max_action = 0.5
+                max_action = 0.5 # maybe adjust this value?
                 joint_tolerance = 0.1
                 # test different parameters
                 # max_action = 1
@@ -148,7 +160,7 @@ for episode in range(num_episodes):
         data_dic = {
                 'observations' : [row for i, row in enumerate(observations)], # observation should be 1*n*107
                 'actions' : [row for i, row in enumerate(actions)],
-                'rewards' : [row for i, row in enumerate(rewards)], 
+                'rewards' : [row for i, row in enumerate(rewards)], # each robot has a reward, size is (n,)
                 'next_observations' : [row for i, row in enumerate(next_observations)],
                 'is_terminal' : [row for i, row in enumerate(is_terminals)]
             }
@@ -157,8 +169,17 @@ for episode in range(num_episodes):
         # seems unnecessary, because at the start of each loop, observation will be got from Isaac
         observations = next_observations
 
+        mean_reward = np.mean(rewards)
+        cumulative_reward += mean_reward
+
         # Optionally print out step information
-        print(f"Episode: {episode}, Step: {actions}, Reward: {rewards}")
+        # print(f"Episode: {episode}, Step: {actions}, Reward: {rewards}")
+    if env._task.mode == 'normal':
+        # writer = SummaryWriter(log_dir=log_dir)
+        writer.add_scalar('cumulative_reward', cumulative_reward, episode)
+        # should be :
+        # writer.add_scalar('average_cumulative_reward', cumulative_reward/env._task.progress_buf, episode)
+        writer.add_scalar('success', env._task.success, episode)
 
     print(f"Episode {episode} finished")
 

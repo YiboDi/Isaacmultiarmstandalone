@@ -24,7 +24,7 @@ class UR5View(ArticulationView):
         # self.target_eff_pose = None
         # self.goal_config = None
         #the order of links might be different with pybullet sim
-        self.base_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/base_link")
+        self.base_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/base_link", name = name + '_base_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
         self.shoulder_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/shoulder_link", name = name + '_shoulder_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
         self.upper_arm_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/upper_arm_link", name= name + '_upper_arm_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
         self.forearm_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/forearm_link", name=name+'_forearm_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
@@ -49,7 +49,9 @@ class UR5View(ArticulationView):
                           self.world
                           ]
         
-        self.link_for_contact = [self.shoulder_link,
+        self.link_for_contact = [
+                            self.base_link,
+                        self.shoulder_link,
                           self.upper_arm_link,
                           self.forearm_link,
                           self.wrist_1_link,

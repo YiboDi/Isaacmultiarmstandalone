@@ -64,6 +64,8 @@ class MultiarmTask(BaseTask):
         # self.action_scale = 7.5
         # self.action_scale = 10.0
         self.action_scale = 15.0
+        # self.action_scale = 30.0
+        # self.action_scale = 60.0
         self.dt = 1/60 # difference in time between two consecutive states or updates
         self.episode_length = self.config['environment']['episode_length']
         self.progress_buf = 0
@@ -90,13 +92,13 @@ class MultiarmTask(BaseTask):
         self.observation_space = None
         self.action_space = None
 
-        # self._max_episode_length = 150
-        self._max_episode_length = 500 # from config
+        self._max_episode_length = 300
+        # self._max_episode_length = 500 # from config
 
         self.dof_lower_limits = torch.tensor([-2 * pi, -2 * pi, -pi, -2 * pi, -2 * pi, -2 * pi], device=self._device)
         self.dof_upper_limits = torch.tensor([2 * pi, 2 * pi, pi, 2 * pi, 2 * pi, 2 * pi], device=self._device)
 
-
+        self.success = 0
         # trigger __init__ of parent class
         BaseTask.__init__(self, name=name, offset=offset)
 
@@ -254,6 +256,7 @@ class MultiarmTask(BaseTask):
         #get the next task
         # self.current_task = self.taskloader.get_next_task()
         self.update_task()
+        self.success = 0
        
         # get the config of the task
         self.num_agents=len(self.current_task.start_config)
@@ -339,7 +342,7 @@ class MultiarmTask(BaseTask):
         # self.franka_dof_speed_scales = torch.ones_like(self.franka_dof_lower_limits)
         # targets = self.franka_dof_targets + self.franka_dof_speed_scales * self.dt * self.actions * self.action_scale
         # self.franka_dof_targets[:] = tensor_clamp(targets, self.franka_dof_lower_limits, self.franka_dof_upper_limits)
-        targets = self.franka_dof_targets + self.dt * self.actions * self.action_scale # shape of self.num_agents*self.num_action
+        targets = self.franka_dof_targets + self.dt * self.actions * self.action_scale # shape of self.num_agents*self.num_action, adapt self.franka_dof_targets based on its last value, making it changing smoothly
         self.franka_dof_targets[:] = tensor_clamp(targets, self.dof_lower_limits, self.dof_upper_limits)
         for i, agent in enumerate(self._franka_list[0:self.num_agents]):
             self._franka_list[i].set_joint_position_targets(self.franka_dof_targets[i, :]) 
@@ -347,7 +350,7 @@ class MultiarmTask(BaseTask):
         self.progress_buf += 1
 
         base_pos = self._franka_list[0].get_world_poses()
-        print(str(base_pos))
+        # print(str(base_pos))
 
         # forces = torch.zeros((self._cartpoles.count, self._cartpoles.num_dof), dtype=torch.float32, device=self._device)
         # forces[:, self._cart_dof_idx] = self._max_push_effort * actions[0]
@@ -368,18 +371,18 @@ class MultiarmTask(BaseTask):
             ee_pos, ee_rot = agent.ee_link.get_world_poses()[0], agent.ee_link.get_world_poses()[1]
 
             # test
-            print('for robot{}:'.format(i))
-            # print('position of ee is :' + str(ee_pos) + '\n')
-            print('position of ee_link is :' + str(agent.ee_link.get_world_poses()) )
-            # print('difference value is :' + str(ee_pos - agent.ee_link.get_world_poses()[0]) + '\n')
-            print('position of target is :' + str(agent.target.get_world_pose()) )
+            # print('for robot{}:'.format(i))
+            # # print('position of ee is :' + str(ee_pos) + '\n')
+            # print('position of ee_link is :' + str(agent.ee_link.get_world_poses()) )
+            # # print('difference value is :' + str(ee_pos - agent.ee_link.get_world_poses()[0]) + '\n')
+            # print('position of target is :' + str(agent.target.get_world_pose()) )
             pos_diff = agent.ee_link.get_world_poses()[0] - agent.target.get_world_pose()[0]
             pos_delta = np.linalg.norm(pos_diff)
             ori_diff = agent.ee_link.get_world_poses()[1] - agent.target.get_world_pose()[1]
             ori_delta = np.linalg.norm(ori_diff)
 
-            print('position difference is :' + str(pos_delta) )
-            print('orientation difference is :' + str(ori_delta) )
+            # print('position difference is :' + str(pos_delta) )
+            # print('orientation difference is :' + str(ori_delta) )
             
 
 
@@ -421,7 +424,7 @@ class MultiarmTask(BaseTask):
                 ob[i, 70:100] = link_position
                 ob[i, 100:107] = base_pose
         self.ob = ob.clone()
-        print('end of one step \n')
+        # print('end of one step \n')
 
         return self.ob # observation of a single franka (this_franka), shape of num_agents*ob of a single agent
 
@@ -609,6 +612,7 @@ class MultiarmTask(BaseTask):
         #         print('end episode because of success')
         if self.all_reach_targets():
             resets = 1
+            self.success = 1
             print('end episode because of success')
             
 
@@ -619,6 +623,8 @@ class MultiarmTask(BaseTask):
             print('end episode because of max steps')
 
         self.resets = resets
+        if self.resets ==1:
+            print('progress_buf: ', self.progress_buf)
 
         return resets
         # return resets.item()

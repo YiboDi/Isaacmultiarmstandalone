@@ -7,8 +7,10 @@ from torch.distributions import Normal
 from copy import deepcopy
 
 from torch.utils.data import DataLoader
+import pickle
 
 import sys
+import os 
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/dataset')
 # sys.path.append()
 
@@ -19,7 +21,10 @@ from time import time
 class SAC():
     def __init__(self, 
                  network,
-                 load_path = None
+                 load_path = None,
+                #  log_dir = None,
+                #  checkpoint_dir = None,
+                 experiment_dir = None,
                 #  replay_buffer, 
                 #  lr=3e-4,
                 #  hyperparameters
@@ -28,12 +33,15 @@ class SAC():
         # self.q1_net = network['Q1']
         # self.q2_net = network['Q2']
         self.policy_key = 'sac_lstm'
-        self.logdir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/checkpoints' # where are checkpoints saved
+        # self.checkpointsdir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/checkpoints' # where are checkpoints saved
         self.network = network
+        self.log_dir = experiment_dir + '/logs/Training'
+        self.checkpointsdir = experiment_dir + '/checkpoints'
+        self.experiment_dir = experiment_dir
 
         self.device = 'cuda'
-        self.writer = SummaryWriter(log_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/logs')
-
+        # self.writer = SummaryWriter(log_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/logs/Training')
+        self.writer = SummaryWriter(log_dir = self.log_dir)
         self.policy_lr = 0.0005
         self.q_lr = 0.001
 
@@ -41,19 +49,20 @@ class SAC():
         # self.q1_optimizer = optim.Adam(self.q1_net.parameters(), lr=self.q_lr)
         # self.q2_optimizer = optim.Adam(self.q2_net.parameters(), lr=self.q_lr)
 
-        capacity = 200000 #(10^4 to 10^6 )
+        # capacity = 500000 #(10^4 to 10^6 )
+        self.replay_buffer_capacity = 50000
         data_dic = {'observations':[],
                     'actions':[],
                     'rewards':[],
                     'next_observations':[],
                     'is_terminal':[]}
-        self.replay_buffer = ReplayBufferDataset(data=data_dic, device=self.device, capacity=capacity)
+        self.replay_buffer = ReplayBufferDataset(data=data_dic, device=self.device, capacity=self.replay_buffer_capacity)
         # self.train_frequency = 100000
 
         # modify batch size for test
         # self.batch_size = 256
-        # self.batch_size = 4096 #(Typically 64-256 for SAC algorithms), 4096 from default setting
-        self.batch_size = 3
+        self.batch_size = 4096 #(Typically 64-256 for SAC algorithms), 4096 from default setting
+        # self.batch_size = 3
 
         self.num_updates_per_train = 10 #train_epoch() for 10 times each train()
         # self.tau = 0.05
@@ -61,9 +70,8 @@ class SAC():
 
         self.last_train_size = 0
         # learn at start for test
-        self.warmup_steps = 10
-
-        # self.warmup_steps = 20000
+        # self.warmup_steps = 10
+        self.warmup_steps = 20000
         self.minimum_replay_buffer_freshness = 0.7
         self.discount = 0.99
         self.alpha = 0.001
@@ -72,7 +80,9 @@ class SAC():
         self.action_scaling = 1
         self.reward_scale = 1
         self.Q_criterion = torch.nn.MSELoss()
-        self.save_interval = 500
+        # self.save_interval = 500
+        # self.save_interval = 100
+        self.save_interval = 10
 
         self.deterministic = True
 
@@ -115,6 +125,7 @@ class SAC():
             'time_steps': 0,
             'update_steps': 0
         }
+        self.prev_update_time = time()
 
         if load_path is not None:
             print("[SAC] loading networks from ", load_path)
@@ -138,7 +149,7 @@ class SAC():
                   ):
         # observations = torch.FloatTensor(observations, device = self.device)
         # should spilt observations into observation here and input observation one by one into policy
-
+        self.stats['time_steps'] += 1
         actions, action_logprobs = self.policy(observations, deterministic = self.deterministic, reparametrize = self.reparametrize)
         actions = actions.detach()
         # observations = torch.chunk(observations, observations.size(0), dim=0)
@@ -164,6 +175,10 @@ class SAC():
         if self.replay_buffer is not None and len(self.replay_buffer) > self.warmup_steps and self.replay_buffer.freshness > self.minimum_replay_buffer_freshness: #change
             self.train()
             self.last_train_size = len(self.replay_buffer)
+            # if self.last_train_size == self.replay_buffer_capacity:
+            #     with open('replay_buffer.pkl', 'wb') as f:
+            #         pickle.dump(self.replay_buffer, f)
+        
 
         return actions
 
@@ -174,7 +189,7 @@ class SAC():
         # Update policy, Q1 and Q2 networks using optimizers
         # Optional: update target networks using polyak averaging
 
-        torch.autograd.set_detect_anomaly(True)
+        # torch.autograd.set_detect_anomaly(True)
 
         policy_loss_sum = 0.0
         q1_loss_sum = 0.0
@@ -220,25 +235,30 @@ class SAC():
         policy_entropy_sum /= self.num_updates_per_train
         policy_value_sum /= self.num_updates_per_train
 
-        # self.writer.add_scalars({
+        # self.writer.add_scalars('01.19',{
         #     'Training/Policy_Loss': policy_loss_sum,
         #     'Training/Policy_Entropy': policy_entropy_sum,
         #     'Training/Policy_Value': policy_value_sum,
         #     'Training/Q1_Loss': q1_loss_sum,
         #     'Training/Q2_Loss': q2_loss_sum,
         #     'Training/Freshness': self.replay_buffer.freshness,
-        # }, self.stats['time_steps'])
+        # }, self.stats['update_steps'])
+        self.writer.add_scalar('Policy_Loss', policy_loss_sum, self.stats['update_steps'])
+        self.writer.add_scalar('Policy_Entropy', policy_entropy_sum, self.stats['update_steps'])
+        self.writer.add_scalar('Policy_Value', policy_value_sum, self.stats['update_steps'])
+        self.writer.add_scalar('Q1_Loss', q1_loss_sum, self.stats['update_steps'])
+        self.writer.add_scalar('Q2_Loss', q2_loss_sum, self.stats['update_steps'])
 
-        # output = "\r[SAC] pi: {0:.4f} | pi_entropy: {1:.4f}".format(
-        #     policy_loss_sum, policy_entropy_sum)
-        # output += "| pi_value: {0:.4f} ".format(policy_value_sum)
-        # output += "| Q1: {0:.4f} | Q2: {1:.4f} ".format(
-        #     q1_loss_sum, q2_loss_sum)
-        # output += "| freshness: {0:.3f} ".format(self.replay_buffer.freshness)
-        # output += "| time: {0:.2f}".format(
-        #     float(time() - self.prev_update_time))
-        # print(output, end='')
-        # self.prev_update_time = time()
+        output = "\r[SAC] pi: {0:.4f} | pi_entropy: {1:.4f}".format(
+            policy_loss_sum, policy_entropy_sum)
+        output += "| pi_value: {0:.4f} ".format(policy_value_sum)
+        output += "| Q1: {0:.4f} | Q2: {1:.4f} ".format(
+            q1_loss_sum, q2_loss_sum)
+        output += "| freshness: {0:.3f} ".format(self.replay_buffer.freshness)
+        output += "| time: {0:.2f}".format(
+            float(time() - self.prev_update_time))
+        print(output, end='')
+        self.prev_update_time = time()
         self.replay_buffer.freshness = 0.0
 
     def update_targets(self):
@@ -277,11 +297,69 @@ class SAC():
         next_obs_action_logprobs = torch.unsqueeze(
             next_obs_action_logprobs, dim=1)
 
-        q_new_actions = torch.min(
-            self.Q1(obs=critic_obs, actions=new_obs_actions *
-                    self.action_scaling),
-            self.Q2(obs=critic_obs, actions=new_obs_actions *
-                    self.action_scaling))
+        with torch.no_grad():
+            q_new_actions = torch.min(
+                self.Q1(obs=critic_obs, actions=new_obs_actions *
+                        self.action_scaling),
+                self.Q2(obs=critic_obs, actions=new_obs_actions *
+                        self.action_scaling))
+
+        # # Train policy
+        # policy_loss = (self.alpha * new_obs_action_logprobs -
+        #                q_new_actions).mean()
+
+        # self.policy_opt.zero_grad()
+        # # policy_loss.backward(retain_graph=True)
+        # policy_loss.backward()
+        # self.policy_opt.step()
+
+        # Train Q networks
+        # with torch.autograd.set_detect_anomaly(True):
+            # q1_pred = self.Q1(obs=critic_obs, actions=actions *
+            #                 self.action_scaling)
+            # q2_pred = self.Q2(obs=critic_obs, actions=actions *
+            #                 self.action_scaling)
+
+        target_q_values = torch.min(
+            self.Q1_target(critic_next_obs, new_next_obs_action *
+                        self.action_scaling),
+            self.Q2_target(critic_next_obs, new_next_obs_action *
+                        self.action_scaling)) \
+            - (self.alpha * next_obs_action_logprobs)
+        with torch.no_grad():
+            q_target = self.reward_scale * rewards + (1. - terminals) * \
+                self.discount * target_q_values
+        # q_target = q_target.detach()
+            
+        q1_pred = self.Q1(obs=critic_obs, actions=actions *
+                        self.action_scaling)
+        # for name, param in self.Q1.named_parameters():
+        #     print(f'{name}: shape={param.shape}, dtype={param.dtype}, version={param._version}')
+        # dot = make_dot(q1_pred, params=dict(self.Q1.named_parameters()))
+        # dot.view()
+        q2_pred = self.Q2(obs=critic_obs, actions=actions *
+                        self.action_scaling)
+
+        q1_loss = self.Q_criterion(q1_pred, q_target)
+        # for name, param in self.Q1.named_parameters():
+        #     print(f'{name}: shape={param.shape}, dtype={param.dtype}, version={param._version}')
+        q2_loss = self.Q_criterion(q2_pred, q_target)
+
+        # test
+        # critic_loss = q1_loss + q2_loss
+        # self.critic_opt.zero_grad()
+
+        self.Q1_opt.zero_grad()
+        # for name, param in self.Q1.named_parameters():
+        #     print(f'{name}: shape={param.shape}, dtype={param.dtype}, version={param._version}')
+        # q1_pred.backward(retain_graph=True)
+        # q1_loss.backward(retain_graph=True)
+        q1_loss.backward()
+        self.Q1_opt.step()
+
+        self.Q2_opt.zero_grad()
+        q2_loss.backward()
+        self.Q2_opt.step()
 
         # Train policy
         policy_loss = (self.alpha * new_obs_action_logprobs -
@@ -292,54 +370,6 @@ class SAC():
         policy_loss.backward()
         self.policy_opt.step()
 
-        # Train Q networks
-        with torch.autograd.set_detect_anomaly(True):
-            # q1_pred = self.Q1(obs=critic_obs, actions=actions *
-            #                 self.action_scaling)
-            # q2_pred = self.Q2(obs=critic_obs, actions=actions *
-            #                 self.action_scaling)
-
-            target_q_values = torch.min(
-                self.Q1_target(critic_next_obs, new_next_obs_action *
-                            self.action_scaling),
-                self.Q2_target(critic_next_obs, new_next_obs_action *
-                            self.action_scaling)) \
-                - (self.alpha * next_obs_action_logprobs)
-            with torch.no_grad():
-                q_target = self.reward_scale * rewards + (1. - terminals) * \
-                    self.discount * target_q_values
-            # q_target = q_target.detach()
-                
-            q1_pred = self.Q1(obs=critic_obs, actions=actions *
-                            self.action_scaling)
-            for name, param in self.Q1.named_parameters():
-                print(f'{name}: shape={param.shape}, dtype={param.dtype}, version={param._version}')
-            # dot = make_dot(q1_pred, params=dict(self.Q1.named_parameters()))
-            # dot.view()
-            q2_pred = self.Q2(obs=critic_obs, actions=actions *
-                            self.action_scaling)
-
-            q1_loss = self.Q_criterion(q1_pred, q_target)
-            for name, param in self.Q1.named_parameters():
-                print(f'{name}: shape={param.shape}, dtype={param.dtype}, version={param._version}')
-            q2_loss = self.Q_criterion(q2_pred, q_target)
-
-            # test
-            # critic_loss = q1_loss + q2_loss
-            # self.critic_opt.zero_grad()
-
-            self.Q1_opt.zero_grad()
-            for name, param in self.Q1.named_parameters():
-                print(f'{name}: shape={param.shape}, dtype={param.dtype}, version={param._version}')
-            # q1_pred.backward(retain_graph=True)
-            # q1_loss.backward(retain_graph=True)
-            q1_loss.backward()
-            self.Q1_opt.step()
-
-            self.Q2_opt.zero_grad()
-            q2_loss.backward()
-            self.Q2_opt.step()
-
         return (
             policy_loss.item(),
             q1_loss.item(),
@@ -349,16 +379,33 @@ class SAC():
         )
     
     def save(self):
-        if self.training and self.logdir is not None:
+        # if self.training and self.logdir is not None:
+        if self.checkpointsdir is not None:
             output_path = "{}/ckpt_{}_{:05d}".format(
-                self.logdir,
+                self.checkpointsdir,
                 self.policy_key,
                 int(self.stats['update_steps'] / self.save_interval))
+            if not os.path.exists(self.checkpointsdir):
+                os.makedirs(self.checkpointsdir)
             torch.save({
                 'networks': self.get_state_dicts_to_save(),
                 'stats': self.get_stats_to_save()
             }, output_path)
             print("[SAC] saved checkpoint at {}".format(output_path))
+        # replaybufferdir = self.experiment_dir + '/replaybuffers/replay_buffer_{:05d}.pkl'.format(int(self.stats['update_steps'] / self.save_interval))
+        # with open(replaybufferdir, 'wb') as f:
+        #     pickle.dump(self.replay_buffer, f)
+            
+        rbdir = self.experiment_dir + '/replaybuffers'
+        if not os.path.exists(rbdir):
+            os.makedirs(rbdir)
+        # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Replay_buffer_{int(self.stats['update_steps'] / self.save_interval)}.pkl"
+        replaybuffer_file = os.path.join(rbdir, filename)
+
+        # Save the replay buffer
+        with open(replaybuffer_file, 'wb') as f:
+            pickle.dump(self.replay_buffer, f)
 
     def get_stats_to_save(self):
         return self.stats
