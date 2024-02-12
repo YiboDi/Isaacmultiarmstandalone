@@ -42,11 +42,12 @@ with open(file_path, 'r') as file:
 network = create_lstm(training_config=training_config)
 # print(network)
 # modify for each experiment
-experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/experiments/01.29ordermodified'
+experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRLdata/experiments/01.30modifiedstep'
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            load_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/experiments/01.24/checkpoints/ckpt_sac_lstm_00337')
+            # load_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/experiments/01.24/checkpoints/ckpt_sac_lstm_00337'
+            )
 writer = SummaryWriter(log_dir=log_dir)
 
 # torch.autograd.set_detect_anomaly(True)
@@ -118,11 +119,11 @@ for episode in range(num_episodes):
             while True: 
                 target_j = expert_waypoints[target_wp_idx]
                 target_dir_j = target_j - curr_j
-                max_action = 0.5 # maybe adjust this value?
-                joint_tolerance = 0.1
-                # test different parameters
-                # max_action = 1
-                # joint_tolerance = 0.2
+                # max_action = 0.5 # max action per simulation step, default value
+                max_action = 1.0 # set max_action to be 1 to aglin with the output of policy network
+                # joint_tolerance = 0.1 # default
+                joint_tolerance = 0.2
+
                 if target_wp_idx < len(expert_waypoints) - 1 and \
                     all([delta_j < max_action for delta_j in abs(target_dir_j)])\
                         and angle(next_dir_j, target_dir_j) < joint_tolerance:
@@ -178,7 +179,7 @@ for episode in range(num_episodes):
         # writer = SummaryWriter(log_dir=log_dir)
         writer.add_scalar('cumulative_reward', cumulative_reward, episode)
         # should be :
-        # writer.add_scalar('average_cumulative_reward', cumulative_reward/env._task.progress_buf, episode)
+        writer.add_scalar('average_cumulative_reward', cumulative_reward/env._task.progress_buf, episode)
         writer.add_scalar('success', env._task.success, episode)
 
     print(f"Episode {episode} finished")
