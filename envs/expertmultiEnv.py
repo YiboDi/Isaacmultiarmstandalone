@@ -9,10 +9,10 @@ def angle(a, b):
     # Angle between two vectors1
         return acos(min(np.dot(a, b) / (norm(a) * norm(b)), 1.0))
 
-class expertSupervisionEnv(VecEnvBase):
+class expertmultiEnv(VecEnvBase):
     
     def __init__(self, headless=False):
-        super(expertSupervisionEnv, self).__init__(headless=headless)
+        super(expertmultiEnv, self).__init__(headless=headless)
         # self.mode = self._task.mode
         self.mode = None
         self.expert_root_dir = '/home/tp2/papers/multiarm_dataset/expert/'
@@ -32,16 +32,33 @@ class expertSupervisionEnv(VecEnvBase):
             return None
         return rrt_waypoints # joint_position
     
-    def set_task(self, task, backend="numpy", sim_params=None, init_sim=True) -> None:
-         return super().set_task(task, backend, sim_params, init_sim)
+    def load_expert_waypoints_for_task_multienv(self, task_ids):
+        expert_waypoints = []
+        for task_id in task_ids:
+            expert_path = self.expert_root_dir + task_id + ".npy"
+            try:
+                rrt_waypoints = np.load(expert_path)
+            except Exception:
+                return None
+            expert_waypoints.append(rrt_waypoints)
+        return expert_waypoints
+    
+    def load_expert_waypoints_for_task_multienv(self, task_ids):
+        expert_paths = []
+        for task_id in task_ids:
+            expert_path = self.expert_root_dir + task_id + ".npy"
+            expert_paths.append(expert_path)
+        try:
+            rrt_waypoints = np.array([np.load(expert_path)] for expert_path in expert_paths)
+        except Exception:
+            return None
+        
+        return rrt_waypoints
+
     
     def act_expert(self):
         expert_waypoints = self.load_expert_waypoints_for_task(
                     task_id=self._task.current_task.id)
-
-        # if next_wp_idx == None:
-        #     next_wp_idx = 0
-        # curr_j = self._task.get_joint_positions() # change franka_list
             
         # load curr_j from Isaac sim    
         curr_j = torch.empty(self._task.num_agents * 6,) 
@@ -77,10 +94,7 @@ class expertSupervisionEnv(VecEnvBase):
         while True: 
             target_j = expert_waypoints[target_wp_idx]
             target_dir_j = target_j - curr_j
-            # max_action = 0.5 # max action per simulation step, default value
-            # max_action = 1.0 # set max_action to be 1 to aglin with the output of policy network
-            # joint_tolerance = 0.1 # default
-            # joint_tolerance = 0.2
+
 
             if target_wp_idx < len(expert_waypoints) - 1 and \
                 all([delta_j < self.max_action for delta_j in abs(target_dir_j)])\
@@ -88,20 +102,10 @@ class expertSupervisionEnv(VecEnvBase):
                 target_wp_idx += 1
             else:
                 break
-        # if next_wp_idx (which is nearest waypoint to the curr_j) is the last one, change the mode to normal
-        # if next_wp_idx < len(expert_waypoints) - 1:
-        #     next_wp_idx += 1
-        # # actions = target_j - curr_j
-        # # self.step(actions)
-            
-        # # so when else, should reset the task, modify
-        # else:
-        #     mode = 'normal'
+
 
         #calculate the actions based on the waypoints
         actions = target_j - curr_j
-        # actions should be target_j instead of target_j - curr_j?
-        # actions = target_j
         actions = actions.reshape((self._task.num_agents, 6))
         actions = torch.from_numpy(actions).clone()
         return actions

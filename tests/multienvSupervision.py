@@ -6,7 +6,7 @@ sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/mult
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/algorithms')
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/networks')
 import gym
-from vec_env_base_custom import VecEnvBase
+# from vec_env_base_custom import VecEnvBase
 import torch
 from SAC import SAC
 # from Supervision import supervision

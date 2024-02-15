@@ -35,7 +35,7 @@ class UR5View(ArticulationView):
                                         # track_contact_forces=True, prepare_contact_sensors=True,
                                         )
         self.tool0 = RigidPrimView(prim_paths_expr = prim_paths_expr + "/tool0")
-        self.world = RigidPrimView(prim_paths_expr = prim_paths_expr + "/world")
+        # self.world = RigidPrimView(prim_paths_expr = prim_paths_expr + "/world")
 
         self.link_list = [self.base_link,
                           self.shoulder_link,
@@ -46,12 +46,12 @@ class UR5View(ArticulationView):
                           self.wrist_3_link,
                           self.ee_link,
                           self.tool0,
-                          self.world
+                        #   self.world
                           ]
         
         self.link_for_contact = [
-                            self.base_link,
-                        self.shoulder_link,
+                          self.base_link,
+                          self.shoulder_link,
                           self.upper_arm_link,
                           self.forearm_link,
                           self.wrist_1_link,
@@ -109,4 +109,13 @@ class UR5View(ArticulationView):
     # @property
     # def gripper_indices(self):
     #     return self._gripper_indices
+
+    def get_link_coms(self):
+        self.link_coms = []
+        for link in self.link_list:
+            link_com = link.get_coms()[0]
+            self.link_coms.append(link_com)
+        self.link_coms = torch.cat(self.link_coms)
+        return self.link_coms
+
     
