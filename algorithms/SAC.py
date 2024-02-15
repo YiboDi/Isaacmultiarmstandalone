@@ -150,6 +150,8 @@ class SAC():
         # observations = torch.FloatTensor(observations, device = self.device)
         # should spilt observations into observation here and input observation one by one into policy
         self.stats['time_steps'] += 1
+        # if observations.dim()==4:
+        #     observations = observations.reshape(-1, *observations.shape[2:])
         actions, action_logprobs = self.policy(observations, deterministic = self.deterministic, reparametrize = self.reparametrize)
         actions = actions.detach()
         # observations = torch.chunk(observations, observations.size(0), dim=0)

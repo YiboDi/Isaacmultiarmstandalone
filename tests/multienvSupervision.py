@@ -66,29 +66,26 @@ for episode in range(num_episodes):
 
         # mode = env.mode
 
-        observations = env._task.get_observations().clone() # num_robots * num_robots * 107
+        observations = env._task.get_observations() # num_robots * num_robots * 107
         # with normal mode, take an action which NN output.
         if env._task.mode == 'normal':
             # print(env._task.current_task.id)
+            if observations.dim()==4: # num_envs, num_agnets, num_agents, num_obs_per_agent
+                observations = observations.reshape(-1, *observations.shape[2:])
             actions = model.inference(observations) # input in network has shape of batch_size * seq_len * input_size = num_robots * num_robots * 107
-            # writer = SummaryWriter(log_dir)
-            # writer.add_scalar('reward', env._task., episode)
-            
+            # shape of actions is (batch size, 6)
+            # dispatch the batch size back to (num_envs, num_robots)
+            actions = actions.reshape(env._task._num_envs, env._task.num_agents, *actions.shape[1:])
+
 
         # with supervision mode, take an action based on expert_waypoints
         elif env._task.mode == 'supervision':
             actions = env.act_expert()
             
         # Step through the environment
-        next_observations, rewards, done, info, is_terminals = env.step(actions)
+        actions_reshaped = actions.reshape(env._task._num_envs, env._task.num_agents, *actions.shape[1:])
+        next_observations, rewards, done, info, is_terminals = env.step(actions_reshaped)
 
-        # why squeeze?
-        # data_dic = {
-        #         'observations' : [row.squeeze(0) for i, row in enumerate(observations)],
-        #         'actions' : [row.squeeze(0) for i, row in enumerate(actions)],
-        #         'rewards' : [row.squeeze(0) for i, row in enumerate(rewards)], 
-        #         'next_observations' : [row.squeeze(0) for i, row in enumerate(next_observations)]
-        #     }
         
         data_dic = {
                 'observations' : [row for i, row in enumerate(observations)], # observation should be 1*n*107
@@ -99,8 +96,6 @@ for episode in range(num_episodes):
             }
         model.replay_buffer.extend(data_dic) # rewards are not torch tensor, but when using in training, loaded as torch tensor
         
-        # seems unnecessary, because at the start of each loop, observation will be got from Isaac
-        observations = next_observations
 
         mean_reward = np.mean(rewards)
         cumulative_reward += mean_reward

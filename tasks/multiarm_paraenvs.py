@@ -310,7 +310,7 @@ class MultiarmTask(BaseTask):
 
         actions = torch.tensor(actions).to(self._device)
         # set the actions in terminal envs to be 0s, and didn't add the data from terminal envs into replay_buffer
-        actions = torch.where(self.is_terminals.unsqueeze(-1), torch.zeros_like(actions), actions)
+        actions = torch.where(self.is_terminals.unsqueeze(-1).unsqueeze(-1), torch.zeros_like(actions), actions)
 
         # scaled_action should be action in (-1,+1) times max_velocity divided by simulation frequency
         # the following fomular should be thought over, the relationship with self.dt

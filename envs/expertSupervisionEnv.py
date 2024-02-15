@@ -32,8 +32,8 @@ class expertSupervisionEnv(VecEnvBase):
             return None
         return rrt_waypoints # joint_position
     
-    def set_task(self, task, backend="numpy", sim_params=None, init_sim=True) -> None:
-         return super().set_task(task, backend, sim_params, init_sim)
+    # def set_task(self, task, backend="numpy", sim_params=None, init_sim=True) -> None:
+    #      return super().set_task(task, backend, sim_params, init_sim)
     
     def act_expert(self):
         expert_waypoints = self.load_expert_waypoints_for_task(

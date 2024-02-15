@@ -32,16 +32,16 @@ class expertmultiEnv(VecEnvBase):
             return None
         return rrt_waypoints # joint_position
     
-    def load_expert_waypoints_for_task_multienv(self, task_ids):
-        expert_waypoints = []
-        for task_id in task_ids:
-            expert_path = self.expert_root_dir + task_id + ".npy"
-            try:
-                rrt_waypoints = np.load(expert_path)
-            except Exception:
-                return None
-            expert_waypoints.append(rrt_waypoints)
-        return expert_waypoints
+    # def load_expert_waypoints_for_task_multienv(self, task_ids):
+    #     expert_waypoints = []
+    #     for task_id in task_ids:
+    #         expert_path = self.expert_root_dir + task_id + ".npy"
+    #         try:
+    #             rrt_waypoints = np.load(expert_path)
+    #         except Exception:
+    #             return None
+    #         expert_waypoints.append(rrt_waypoints)
+    #     return expert_waypoints
     
     def load_expert_waypoints_for_task_multienv(self, task_ids):
         expert_paths = []
