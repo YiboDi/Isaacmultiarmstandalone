@@ -12,7 +12,8 @@ from SAC import SAC
 # from Supervision import supervision
 from BaseNet import StochasticActor, Q
 import json
-from expertSupervisionEnv import expertSupervisionEnv, angle
+# from expertSupervisionEnv import expertSupervisionEnv, angle
+from expertmultiEnv import expertmultiEnv, angle
 from numpy.linalg import norm
 import numpy as np
 import os
@@ -27,11 +28,14 @@ num_episodes = 75000  # Define the number of episodes for testing
 training_data = os.listdir('/home/tp2/papers/multiarm_dataset/tasks')
 num_episodes = len(training_data)*2-5
 
-env = expertSupervisionEnv()
+# env = expertSupervisionEnv()
+env = expertmultiEnv()
 
 # from multiarm_task import MultiarmTask
 from multiarm_with_supervision import MultiarmSupervision
-task = MultiarmSupervision(name="MultiarmSupervision")
+# task = MultiarmSupervision(name="MultiarmSupervision")
+from multiarm_paraenvs import MultiarmTask
+task = MultiarmTask(name="MultiarmParaenvs", env=env)
 env.set_task(task, backend = 'torch')
 
 file_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/config/default.json'
@@ -80,7 +84,7 @@ for episode in range(num_episodes):
 
         # with supervision mode, take an action based on expert_waypoints
         elif env._task.mode == 'supervision':
-            actions = env.act_expert()
+            actions = env.act_experts()
             
         # Step through the environment
         actions_reshaped = actions.reshape(env._task._num_envs, env._task.num_agents, *actions.shape[1:])

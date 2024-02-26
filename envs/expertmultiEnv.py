@@ -43,17 +43,34 @@ class expertmultiEnv(VecEnvBase):
     #         expert_waypoints.append(rrt_waypoints)
     #     return expert_waypoints
     
-    def load_expert_waypoints_for_task_multienv(self, task_ids):
-        expert_paths = []
+    # def load_expert_waypoints_for_task_multienv(self, task_ids):
+    #     expert_paths = []
+    #     for task_id in task_ids:
+    #         expert_path = self.expert_root_dir + task_id + ".npy"
+    #         expert_paths.append(expert_path)
+    #     try:
+    #         rrt_waypoints = np.array([np.load(expert_path)] for expert_path in expert_paths)
+    #     except Exception:
+    #         return None
+        
+    #     return rrt_waypoints
+    
+
+    def load_expert_waypoints_for_tasks(self, task_ids):
+        waypoints_list = []
         for task_id in task_ids:
             expert_path = self.expert_root_dir + task_id + ".npy"
-            expert_paths.append(expert_path)
-        try:
-            rrt_waypoints = np.array([np.load(expert_path)] for expert_path in expert_paths)
-        except Exception:
-            return None
-        
-        return rrt_waypoints
+            try:
+                # Load the expert waypoints for the given task ID
+                rrt_waypoints = np.load(expert_path)
+            except Exception as e:
+                # Handle the exception as needed (e.g., log an error message, return None, etc.)
+                print(f"Error loading waypoints for task {task_id}: {e}")
+                rrt_waypoints = None  # Or consider an alternative handling strategy
+
+            waypoints_list.append(rrt_waypoints)
+
+        return waypoints_list
 
     
     def act_expert(self):
@@ -109,3 +126,47 @@ class expertmultiEnv(VecEnvBase):
         actions = actions.reshape((self._task.num_agents, 6))
         actions = torch.from_numpy(actions).clone()
         return actions
+    
+    def act_experts(self):
+        # Assuming `load_expert_waypoints_for_tasks` can load multiple trajectories for parallel tasks
+        expert_waypoints_batch = self.load_expert_waypoints_for_tasks(task_ids=[task.id for task in self._task.current_tasks])
+
+        # Initialize a tensor to store current joint positions from all parallel Isaac sim environments
+        curr_js = torch.empty(len(self._task.current_tasks), self._task.num_agents * 6)
+        for task_idx, task in enumerate(self._task.current_tasks):
+            for i, agent in enumerate(self._task._franka_list[0:self._task.num_agents]):
+                dof = agent.get_joint_positions()
+                curr_js[task_idx, i * 6:(i + 1) * 6] = torch.tensor(dof)
+
+        # Process each trajectory in the batch
+        actions_batch = torch.empty_like(curr_js)
+        for idx, (curr_j, expert_waypoints) in enumerate(zip(curr_js, expert_waypoints_batch)):
+            # Find the nearest waypoint to the current position for each trajectory
+            distances = torch.norm(expert_waypoints - curr_j.unsqueeze(0).repeat(len(expert_waypoints), 1), dim=1)
+            next_wp_idx = torch.argmin(distances)
+
+            # Ensure the next waypoint is not too close to the current position
+            while next_wp_idx < len(expert_waypoints) - 1 and torch.all(torch.abs(curr_j - expert_waypoints[next_wp_idx]) < 0.01):
+                next_wp_idx += 1
+
+            # Initialize target waypoint index
+            target_wp_idx = next_wp_idx
+
+            # Calculate direction to the next waypoint
+            next_dir_j = expert_waypoints[next_wp_idx] - curr_j
+
+            # Find a target waypoint that is within action and joint tolerance limits
+            while target_wp_idx < len(expert_waypoints) - 1:
+                target_j = expert_waypoints[target_wp_idx]
+                target_dir_j = target_j - curr_j
+
+                if torch.all(torch.abs(target_dir_j) < self.max_action) and torch.dot(next_dir_j, target_dir_j) / (torch.norm(next_dir_j) * torch.norm(target_dir_j)) > torch.cos(self.joint_tolerance):
+                    target_wp_idx += 1
+                else:
+                    break
+
+            # Calculate actions based on the selected target waypoint
+            actions = (expert_waypoints[target_wp_idx] - curr_j).reshape((self._task.num_agents, 6))
+            actions_batch[idx] = actions
+
+        return actions_batch.clone()

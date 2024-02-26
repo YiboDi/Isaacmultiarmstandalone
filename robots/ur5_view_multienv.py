@@ -1,4 +1,3 @@
-
 from typing import Optional
 
 from omni.isaac.core.articulations import ArticulationView
@@ -8,14 +7,11 @@ from omni.isaac.core.objects import VisualCylinder
 import numpy as np
 import torch
 
-
-class UR5View(ArticulationView):
+class UR5MultiarmEnv(ArticulationView):
     def __init__(
         self,
         prim_paths_expr: str,
         name: Optional[str] = "UR5View",
-        target_pos: Optional[list] = None,
-        target_ori: Optional[list] = None,
     ) -> None:
         """[summary]
         """
@@ -62,12 +58,8 @@ class UR5View(ArticulationView):
         # for link in self.link_for_contact:
         #     link.initialize()
         
-        self.ee = VisualCylinder(prim_path=prim_paths_expr + "/ee_link/ee", radius=0.02, height=0.1, name=name + 'EE')
-        self.target = VisualCylinder(prim_path=prim_paths_expr + "/target", radius=0.02, height=0.1,
-                                    color=np.array([0.8, 0.8, 0.8]),
-                                    translation=target_pos if target_pos is not None else [0,0,-5],
-                                    orientation=target_ori if target_ori is not None else None,
-                                    name=name + 'Target')
+        self.ee = None
+        self.target = None
 
         # self.link_position = []
         # for i,link in self.link_list:
@@ -113,9 +105,12 @@ class UR5View(ArticulationView):
     def get_link_coms(self):
         self.link_coms = []
         for link in self.link_list:
-            link_com = link.get_coms()[0]
+            try:
+                link_com = link.get_coms()[0]
+            except:
+                link_com = link.get_local_poses()[0]
             self.link_coms.append(link_com)
-        self.link_coms = torch.cat(self.link_coms)
+        self.link_coms = torch.cat(self.link_coms, dim=1)
         return self.link_coms
 
     
