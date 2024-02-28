@@ -87,8 +87,8 @@ for episode in range(num_episodes):
             actions = env.act_experts()
             
         # Step through the environment
-        actions_reshaped = actions.reshape(env._task._num_envs, env._task.num_agents, *actions.shape[1:])
-        next_observations, rewards, done, info, is_terminals = env.step(actions_reshaped)
+        # actions_reshaped = actions.reshape(env._task._num_envs, env._task.num_agents, *actions.shape[1:])
+        next_observations, rewards, done, info, is_terminals = env.step(actions)
 
         
         data_dic = {
@@ -101,7 +101,7 @@ for episode in range(num_episodes):
         model.replay_buffer.extend(data_dic) # rewards are not torch tensor, but when using in training, loaded as torch tensor
         
 
-        mean_reward = np.mean(rewards)
+        mean_reward = torch.mean(rewards)
         cumulative_reward += mean_reward
 
         # Optionally print out step information
