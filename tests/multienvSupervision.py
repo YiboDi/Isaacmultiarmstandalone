@@ -64,9 +64,9 @@ for episode in range(num_episodes):
     done = False
 
     mode = env.mode
-    cumulative_reward = 0
+    cumulative_reward = torch.zeros(env._task._num_envs, device='cuda')
 
-    while not done:
+    while not done: # loop in one episode
 
         # mode = env.mode
 
@@ -101,17 +101,19 @@ for episode in range(num_episodes):
         model.replay_buffer.extend(data_dic) # rewards are not torch tensor, but when using in training, loaded as torch tensor
         
 
-        mean_reward = torch.mean(rewards)
-        cumulative_reward += mean_reward
-
+        mean_reward = torch.mean(rewards, dim=1)
+        cumulative_reward += mean_reward # average reward across all robots in one env
+        cumulative_reward_logged = cumulative_reward.sum()
         # Optionally print out step information
         # print(f"Episode: {episode}, Step: {actions}, Reward: {rewards}")
     if env._task.mode == 'normal':
+        """add scaler across all tasks with different num_envs"""
         # writer = SummaryWriter(log_dir=log_dir)
-        writer.add_scalar('cumulative_reward', cumulative_reward, episode)
+        writer.add_scalar('cumulative_reward', cumulative_reward_logged, episode)
         # should be :
-        writer.add_scalar('average_cumulative_reward', cumulative_reward/env._task.progress_buf, episode)
-        writer.add_scalar('success', env._task.success, episode)
+        writer.add_scalar('average_cumulative_reward', cumulative_reward_logged/env._task.progress_buf, episode) # average reward across all robots in one env
+        writer.add_scalar('success', env._task.success.sum(), episode) # 
+        """should also add scaler distinguish tasks with different num_envs"""
 
     print(f"Episode {episode} finished")
 
