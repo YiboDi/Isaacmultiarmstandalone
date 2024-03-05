@@ -155,15 +155,17 @@ class VecEnvBase(gym.Env):
         self.sim_frame_count += 1
 
         observations = self._task.get_observations()
-        rewards = self._task.calculate_metrics()
-        dones = self._task.is_done() # self.reset_buf change if some env meet the conditions
+        rewards = self._task.calculate_metrics() # also update self.done
+        resets = self._task.is_done() # self.reset_buf change if some env meet the conditions
         info = {}
+
+        done = self._task.done
         
         is_terminals = self._task.is_terminals
 
         # self.progress_buf[:] += 1
 
-        return observations, rewards, dones, info, is_terminals
+        return observations, rewards, resets, info, is_terminals, done
 
     def reset(self):
         """ Resets the task and updates observations. """

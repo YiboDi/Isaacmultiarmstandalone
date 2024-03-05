@@ -69,7 +69,7 @@ class ReplayBufferDataset(Dataset):
                     self.device, non_blocking=True),
                 self.next_observations_padded[idx].to(
                     self.device, non_blocking=True),
-                tensor(float(self.data['is_terminal'][idx])).to(
+                tensor(float(self.data['is_done'][idx])).to(
                     self.device, non_blocking=True)
             )
         else:
@@ -82,7 +82,7 @@ class ReplayBufferDataset(Dataset):
                     self.device, non_blocking=True),
                 self.next_observations_padded[idx].to(
                     self.device, non_blocking=True),
-                tensor(float(self.data['is_terminal'][idx])).to(
+                tensor(float(self.data['is_done'][idx])).to(
                     self.device, non_blocking=True)
             )
 

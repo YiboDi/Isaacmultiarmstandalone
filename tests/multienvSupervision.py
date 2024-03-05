@@ -61,12 +61,13 @@ writer = SummaryWriter(log_dir=log_dir)
 
 for episode in range(num_episodes):
     observations = env.reset()
-    done = False
+    reset = False # flag indicate the reset
 
     mode = env.mode
     cumulative_reward = torch.zeros(env._task._num_envs, device='cuda')
+    end = torch.zeros(env._task._num_envs, device='cuda')
 
-    while not done: # loop in one episode
+    while not reset: # loop in one episode
 
         # mode = env.mode
 
@@ -88,18 +89,28 @@ for episode in range(num_episodes):
             
         # Step through the environment
         # actions_reshaped = actions.reshape(env._task._num_envs, env._task.num_agents, *actions.shape[1:])
-        next_observations, rewards, done, info, is_terminals = env.step(actions)
+        next_observations, rewards, reset, info, is_terminals, dones = env.step(actions)
 
         
+        # data_dic = {
+        #         'observations' : [row for i, row in enumerate(observations)], # observation should be 1*n*107
+        #         'actions' : [row for i, row in enumerate(actions)],
+        #         'rewards' : [row for i, row in enumerate(rewards)], # each robot has a reward, size is (n,)
+        #         'next_observations' : [row for i, row in enumerate(next_observations)],
+        #         'is_terminal' : [row for i, row in enumerate(is_terminals)]
+        #     }
+
+        # for multi envs setting :
         data_dic = {
-                'observations' : [row for i, row in enumerate(observations)], # observation should be 1*n*107
-                'actions' : [row for i, row in enumerate(actions)],
-                'rewards' : [row for i, row in enumerate(rewards)], # each robot has a reward, size is (n,)
-                'next_observations' : [row for i, row in enumerate(next_observations)],
-                'is_terminal' : [row for i, row in enumerate(is_terminals)]
-            }
+            'observations' : [obs_agent for obs_agents in observations if obs_agents not in end_indices for obs_agent in obs_agents], # here n*107
+            'actions' : [act_agent for act_agents in actions if act_agents not in end_indices for act_agent in act_agents], # here 6
+            'rewards' : [rew_agent for rew_agents in rewards if rew_agents not in end_indices for rew_agent in rew_agents ], # here 1
+            'next_observations' : [next_obs_agent for next_obs_agents in next_observations if next_obs_agents not in end_indices for next_obs_agent in next_obs_agents ],
+            'is_done' : [done_agent for done_agents in dones if done_agents not in end_indices for done_agent in done_agents ] # self.is_terminal has shape of [num_envs], representing if terminal for each env. but here should use done with shape of [num_envs,num_agents]
+        }
         model.replay_buffer.extend(data_dic) # rewards are not torch tensor, but when using in training, loaded as torch tensor
-        
+        end = is_terminals
+        end_indices = torch.where(end==1)
 
         mean_reward = torch.mean(rewards, dim=1)
         cumulative_reward += mean_reward # average reward across all robots in one env
