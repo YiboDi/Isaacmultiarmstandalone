@@ -18,6 +18,38 @@ class expertmultiEnv(VecEnvBase):
         self.expert_root_dir = '/home/tp2/papers/multiarm_dataset/expert/'
         self.max_action = 2.0
         self.joint_tolerance = 0.4
+    
+    def step(self, actions):
+        """ Basic implementation for stepping simulation. 
+            Can be overriden by inherited Env classes
+            to satisfy requirements of specific RL libraries. This method passes actions to task
+            for processing, steps simulation, and computes observations, rewards, and resets.
+
+        Args:
+            actions (Union[numpy.ndarray, torch.Tensor]): Actions buffer from policy.
+        Returns:
+            observations(Union[numpy.ndarray, torch.Tensor]): Buffer of observation data.
+            rewards(Union[numpy.ndarray, torch.Tensor]): Buffer of rewards data.
+            dones(Union[numpy.ndarray, torch.Tensor]): Buffer of resets/dones data.
+            info(dict): Dictionary of extras data.
+        """
+        self._task.pre_physics_step(actions)
+        self._world.step(render=self._render) # steps the physics simulation
+
+        self.sim_frame_count += 1
+
+        observations = self._task.get_observations()
+        rewards = self._task.calculate_metrics() # also update self.done
+        resets = self._task.is_done() # self.reset_buf change if some env meet the conditions
+        info = {}
+
+        done = self._task.done
+        
+        is_terminals = self._task.is_terminals
+
+        # self.progress_buf[:] += 1
+
+        return observations, rewards, resets, info, is_terminals, done
 
 
     def reset(self):
@@ -161,11 +193,13 @@ class expertmultiEnv(VecEnvBase):
             next_dir_j = expert_waypoints[next_wp_idx] - curr_j
 
             # Find a target waypoint that is within action and joint tolerance limits
-            while target_wp_idx < len(expert_waypoints) - 1:
+            while True:
                 target_j = expert_waypoints[target_wp_idx]
                 target_dir_j = target_j - curr_j
 
-                if torch.all(torch.abs(target_dir_j) < self.max_action) and torch.dot(next_dir_j, target_dir_j) / (torch.norm(next_dir_j) * torch.norm(target_dir_j)) > torch.cos(torch.tensor(self.joint_tolerance)):
+                # if torch.all(torch.abs(target_dir_j) < self.max_action) and torch.dot(next_dir_j, target_dir_j) / (torch.norm(next_dir_j) * torch.norm(target_dir_j)) > torch.cos(torch.tensor(self.joint_tolerance)):
+                if target_wp_idx < len(expert_waypoints) - 1 and all([delta_j < self.max_action for delta_j in abs(target_dir_j)])\
+                    and angle(next_dir_j, target_dir_j) < self.joint_tolerance:
                     target_wp_idx += 1
                 else:
                     break

@@ -50,19 +50,19 @@ class SAC():
         # self.q2_optimizer = optim.Adam(self.q2_net.parameters(), lr=self.q_lr)
 
         # capacity = 500000 #(10^4 to 10^6 )
-        self.replay_buffer_capacity = 50000
+        self.replay_buffer_capacity = 5000000
         data_dic = {'observations':[],
                     'actions':[],
                     'rewards':[],
                     'next_observations':[],
-                    'is_done':[]}
+                    'is_terminal':[]}
         self.replay_buffer = ReplayBufferDataset(data=data_dic, device=self.device, capacity=self.replay_buffer_capacity)
         # self.train_frequency = 100000
 
         # modify batch size for test
         # self.batch_size = 256
         self.batch_size = 4096 #(Typically 64-256 for SAC algorithms), 4096 from default setting
-        self.batch_size = 3
+        # self.batch_size = 3
 
         self.num_updates_per_train = 10 #train_epoch() for 10 times each train()
         # self.tau = 0.05
@@ -70,8 +70,8 @@ class SAC():
 
         self.last_train_size = 0
         # learn at start for test
-        self.warmup_steps = 10
-        # self.warmup_steps = 20000
+        # self.warmup_steps = 10
+        self.warmup_steps = 20000
         self.minimum_replay_buffer_freshness = 0.7
         self.discount = 0.99
         self.alpha = 0.001

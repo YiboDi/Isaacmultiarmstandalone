@@ -22,7 +22,7 @@ from tensorboardX import SummaryWriter
 # from BaseNet import create_network
 from net_utils import create_lstm
 
-num_episodes = 75000  # Define the number of episodes for testing
+num_episodes = 750000  # Define the number of episodes for testing
 # rather than define a number, num_episode should be up to number of tasks used as training data
 training_data = os.listdir('/home/tp2/papers/multiarm_dataset/tasks')
 num_episodes = len(training_data)*2-5
@@ -43,13 +43,13 @@ with open(file_path, 'r') as file:
 network = create_lstm(training_config=training_config)
 # print(network)
 # modify for each experiment
-experiment_name = '02.12test'
+experiment_name = '0305continue0130'
 
 experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRLdata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            # load_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/experiments/01.24/checkpoints/ckpt_sac_lstm_00337'
+            load_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRLdata/experiments/01.30modifiedstep/checkpoints/ckpt_sac_lstm_00949'
             )
 writer = SummaryWriter(log_dir=log_dir)
 

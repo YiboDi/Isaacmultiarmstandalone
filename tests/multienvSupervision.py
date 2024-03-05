@@ -47,7 +47,7 @@ with open(file_path, 'r') as file:
 network = create_lstm(training_config=training_config)
 # print(network)
 # modify for each experiment
-experiment_name = '02.12test'
+experiment_name = '0305test'
 
 experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRLdata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
@@ -64,20 +64,24 @@ for episode in range(num_episodes):
     reset = False # flag indicate the reset
 
     mode = env.mode
-    cumulative_reward = torch.zeros(env._task._num_envs, device='cuda')
+    # cumulative_reward = torch.zeros(env._task._num_envs, device='cuda')
+    cumulative_reward = torch.zeros(1, device='cuda')
     end = torch.zeros(env._task._num_envs, device='cuda')
+
+    step_count = torch.zeros(env._task._num_envs, device='cuda')
 
     while not reset: # loop in one episode
 
         # mode = env.mode
-
+        end = env._task.is_terminals
+        end_mask = end!=1
         observations = env._task.get_observations() # num_robots * num_robots * 107
         # with normal mode, take an action which NN output.
         if env._task.mode == 'normal':
             # print(env._task.current_task.id)
             if observations.dim()==4: # num_envs, num_agnets, num_agents, num_obs_per_agent
-                observations = observations.reshape(-1, *observations.shape[2:])
-            actions = model.inference(observations) # input in network has shape of batch_size * seq_len * input_size = num_robots * num_robots * 107
+                obs = observations.reshape(-1, *observations.shape[2:])
+            actions = model.inference(obs) # input in network has shape of batch_size * seq_len * input_size = num_robots * num_robots * 107
             # shape of actions is (batch size, 6)
             # dispatch the batch size back to (num_envs, num_robots)
             actions = actions.reshape(env._task._num_envs, env._task.num_agents, *actions.shape[1:])
@@ -85,7 +89,7 @@ for episode in range(num_episodes):
 
         # with supervision mode, take an action based on expert_waypoints
         elif env._task.mode == 'supervision':
-            actions = env.act_experts()
+            actions = env.act_experts().to('cuda')
             
         # Step through the environment
         # actions_reshaped = actions.reshape(env._task._num_envs, env._task.num_agents, *actions.shape[1:])
@@ -101,28 +105,42 @@ for episode in range(num_episodes):
         #     }
 
         # for multi envs setting :
+        # try:
+        #     end_mask
+        # except:
+        #     pass
+        # else:
+        observations = observations[end_mask]
+        actions = actions[end_mask]
+        rewards = rewards[end_mask]
+        next_observations = next_observations[end_mask]
+        dones = dones[end_mask]
+        # alternatively using .flatten()
         data_dic = {
-            'observations' : [obs_agent for obs_agents in observations if obs_agents not in end_indices for obs_agent in obs_agents], # here n*107
-            'actions' : [act_agent for act_agents in actions if act_agents not in end_indices for act_agent in act_agents], # here 6
-            'rewards' : [rew_agent for rew_agents in rewards if rew_agents not in end_indices for rew_agent in rew_agents ], # here 1
-            'next_observations' : [next_obs_agent for next_obs_agents in next_observations if next_obs_agents not in end_indices for next_obs_agent in next_obs_agents ],
-            'is_done' : [done_agent for done_agents in dones if done_agents not in end_indices for done_agent in done_agents ] # self.is_terminal has shape of [num_envs], representing if terminal for each env. but here should use done with shape of [num_envs,num_agents]
+        'observations' : [obs_agent for obs_agents in observations for obs_agent in obs_agents], # here n*107
+        'actions' : [act_agent for act_agents in actions for act_agent in act_agents], # here 6
+        'rewards' : [rew_agent for rew_agents in rewards for rew_agent in rew_agents ], # here 1
+        'next_observations' : [next_obs_agent for next_obs_agents in next_observations for next_obs_agent in next_obs_agents ],
+        'is_terminal' : [done_agent for done_agents in dones for done_agent in done_agents ] # self.is_terminal has shape of [num_envs], representing if terminal for each env. but here should use done with shape of [num_envs,num_agents]
         }
         model.replay_buffer.extend(data_dic) # rewards are not torch tensor, but when using in training, loaded as torch tensor
-        end = is_terminals
-        end_indices = torch.where(end==1)
+        # end = is_terminals
+        # end_mask = end!=1
 
-        mean_reward = torch.mean(rewards, dim=1)
-        cumulative_reward += mean_reward # average reward across all robots in one env
-        cumulative_reward_logged = cumulative_reward.sum()
+        # mean_reward = torch.mean(rewards, dim=1)
+        # cumulative_reward += mean_reward # average reward across all robots in one env
+        # cumulative_reward_logged = cumulative_reward.sum()
+        mean_reward = torch.mean(rewards)
+        cumulative_reward += mean_reward
+        step_count += 1-end 
         # Optionally print out step information
         # print(f"Episode: {episode}, Step: {actions}, Reward: {rewards}")
     if env._task.mode == 'normal':
         """add scaler across all tasks with different num_envs"""
         # writer = SummaryWriter(log_dir=log_dir)
-        writer.add_scalar('cumulative_reward', cumulative_reward_logged, episode)
+        writer.add_scalar('cumulative_reward', cumulative_reward, episode)
         # should be :
-        writer.add_scalar('average_cumulative_reward', cumulative_reward_logged/env._task.progress_buf, episode) # average reward across all robots in one env
+        writer.add_scalar('average_cumulative_reward', cumulative_reward/step_count.sum(), episode) # average reward across all robots in one env
         writer.add_scalar('success', env._task.success.sum(), episode) # 
         """should also add scaler distinguish tasks with different num_envs"""
 

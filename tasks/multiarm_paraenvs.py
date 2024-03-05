@@ -57,7 +57,7 @@ class MultiarmTask(BaseTask):
 
         self.taskloader = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
         # self.current_task = self.taskloader.get_next_task()
-        self._num_envs = 3
+        self._num_envs = 1
         self._env_spacing = 3
         # self.current_tasks = []
         # for i in range(self._num_envs):
@@ -329,9 +329,9 @@ class MultiarmTask(BaseTask):
                 self._franka_list[i].base_link.set_local_poses(translations = base_pos[:,i,:], orientations = base_ori[:,i,:])
                 self._target_list[i].set_local_poses(translations = target_eff_pos[:,i,:], orientations = target_eff_ori[:,i,:])
                 # check local poses of robots and its config
-                print(str(self._franka_list[i].base_link.get_local_poses()) + 'and the configurations:')
-                for current_task in self.current_tasks:
-                    print(current_task.base_poses[i])
+                # print(str(self._franka_list[i].base_link.get_local_poses()) + 'and the configurations:')
+                # for current_task in self.current_tasks:
+                #     print(current_task.base_poses[i])
                 # check if poses of target in simulation same as current_task.target_eff_poses
                 # print(str(self._target_list[i].get_local_poses()) + 'and the configurations:')
                 # for current_task in self.current_tasks:
@@ -346,7 +346,8 @@ class MultiarmTask(BaseTask):
                 translations[:,2] = -10
                 # self._franka_list[i].set_local_poses(translations = translations)
                 # self._franka_list[i].target.set_local_poses(translations = translations)
-                self._franka_list[i].set_local_poses(translations = translations) 
+                self._franka_list[i].world.set_local_poses(translations = translations) 
+                self._franka_list[i].base_link.set_local_poses(translations = translations) 
                 self._target_list[i].set_local_poses(translations = translations)
 
         # test to solve the flashing cylinder problem
@@ -375,9 +376,9 @@ class MultiarmTask(BaseTask):
         for i in range(self.num_agents):
             self._franka_list[i].set_joint_position_targets(self.franka_dof_targets[:, i, :]) 
             # check the base poses of robots in simulation with the current_task.base_poses
-            print(str(self._franka_list[i].get_local_poses()) + 'and the configurations:')
-            for current_task in self.current_tasks:
-                print(current_task.base_poses[i])
+            # print(str(self._franka_list[i].get_local_poses()) + 'and the configurations:')
+            # for current_task in self.current_tasks:
+            #     print(current_task.base_poses[i])
             # after reset, different
 
         # for i in range(4):
@@ -483,7 +484,8 @@ class MultiarmTask(BaseTask):
         for i in range(self.num_agents):
             for j, link in enumerate(self._franka_list[i].link_for_contact):
                 if link.get_net_contact_forces() is not None:
-                    self.collision[:, i] = torch.where(torch.norm(link.get_net_contact_forces()) > 0.5, 1, 0)
+                    contact_force = torch.norm(link.get_net_contact_forces(), dim=1).to(self._device)
+                    self.collision[:, i] = torch.where(contact_force > 0.3, 1, self.collision[:, i])
                     """
                     set self.is_terminals to be 1 if collision happens in an env
                     """
@@ -508,7 +510,7 @@ class MultiarmTask(BaseTask):
         """
         set self.is_terminals to be 1 if all agents in an env reach their targets
         """
-        self.is_terminals = torch.where(all_reach_targets == 1, 1, self.is_terminals)
+        # self.is_terminals = torch.where(all_reach_targets == 1, 1, self.is_terminals)
         return all_reach_targets
     
     def indiv_reach_targets(self):
@@ -550,8 +552,8 @@ class MultiarmTask(BaseTask):
             #         raise ValueError('The reading of the contact sensor makes no sense')
 
             # test below
-            if self.collision.any()==1:
-                print('collision happens')
+            # if self.collision.any()==1:
+            #     print('collision happens')
 
 
         indiv_reach_target_rewards = torch.zeros((self._num_envs, self.num_agents))
@@ -589,8 +591,8 @@ class MultiarmTask(BaseTask):
         # else:
         #     collectively_reach_targets_reward = np.zeros(self.num_agents)
         collectively_reach_targets_reward = torch.where(self.all_reach_targets() == 1, self.coorp_reach_target_reward, 0)
-        self.success = torch.where(collectively_reach_targets_reward == 1, 1, 0)
-        self.is_terminals = torch.where(collectively_reach_targets_reward == 1, 1, self.is_terminals)
+        self.success = torch.where(collectively_reach_targets_reward == self.coorp_reach_target_reward, 1, self.success)
+        self.is_terminals = torch.where(collectively_reach_targets_reward == self.coorp_reach_target_reward, 1, self.is_terminals)
 
         # update self.done
         self.done = torch.where(self.collision == 1, 1, self.done)
@@ -598,8 +600,8 @@ class MultiarmTask(BaseTask):
         self.done = torch.ones_like(self.done) if self.progress_buf >= self._max_episode_length else self.done
 
         # test when any in self.is_terminals equal to 1
-        if self.is_terminals.any() == 1:
-            print('some env terminates')
+        # if self.is_terminals.any() == 1:
+        #     print('some env terminates')
 
         franka_rewards_sum = \
             collision_penalties + indiv_reach_target_rewards +\
@@ -616,7 +618,11 @@ class MultiarmTask(BaseTask):
         # all envs either success or collide
         if torch.all(self.is_terminals == 1):
             resets = 1
-            print('end episode because of all envs success or collision')
+            # print('end episode because of all envs success or collision')
+            if torch.all(self.success == 1):
+                print('end episode because of all envs success')
+            elif torch.all(self.collision == 1):
+                print('end episode because of all envs collision')
             
 
         # reset when reach max steps

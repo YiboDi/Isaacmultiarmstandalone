@@ -159,13 +159,13 @@ class VecEnvBase(gym.Env):
         resets = self._task.is_done() # self.reset_buf change if some env meet the conditions
         info = {}
 
-        done = self._task.done
+        # done = self._task.done
         
         is_terminals = self._task.is_terminals
 
         # self.progress_buf[:] += 1
 
-        return observations, rewards, resets, info, is_terminals, done
+        return observations, rewards, resets, info, is_terminals
 
     def reset(self):
         """ Resets the task and updates observations. """
