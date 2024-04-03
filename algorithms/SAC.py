@@ -50,7 +50,8 @@ class SAC():
         # self.q2_optimizer = optim.Adam(self.q2_net.parameters(), lr=self.q_lr)
 
         # capacity = 500000 #(10^4 to 10^6 )
-        self.replay_buffer_capacity = 5000000
+        # self.replay_buffer_capacity = 100000
+        self.replay_buffer_capacity = 4096
         data_dic = {'observations':[],
                     'actions':[],
                     'rewards':[],
@@ -64,15 +65,17 @@ class SAC():
         self.batch_size = 4096 #(Typically 64-256 for SAC algorithms), 4096 from default setting
         # self.batch_size = 3
 
-        self.num_updates_per_train = 10 #train_epoch() for 10 times each train()
+        self.num_updates_per_train = 30 #train_epoch() for 10 times each train()
         # self.tau = 0.05
         self.tau = 0.001
 
         self.last_train_size = 0
         # learn at start for test
         # self.warmup_steps = 10
-        self.warmup_steps = 20000
-        self.minimum_replay_buffer_freshness = 0.7
+        # self.warmup_steps = 20000
+        self.warmup_steps = 4096
+        # self.minimum_replay_buffer_freshness = 0.7
+        self.minimum_replay_buffer_freshness = 0.5
         self.discount = 0.99
         self.alpha = 0.001
         # self.memory_cluster_capacity = 50000
@@ -81,8 +84,8 @@ class SAC():
         self.reward_scale = 1
         self.Q_criterion = torch.nn.MSELoss()
         # self.save_interval = 500
-        # self.save_interval = 100
-        self.save_interval = 10
+        self.save_interval = 100
+        # self.save_interval = 10
 
         self.deterministic = True
 
@@ -174,7 +177,7 @@ class SAC():
         #     normal = Normal(mean, std) # distribution
         #     action = normal.sample()
         
-        if self.replay_buffer is not None and len(self.replay_buffer) > self.warmup_steps and self.replay_buffer.freshness > self.minimum_replay_buffer_freshness: #change
+        if self.replay_buffer is not None and len(self.replay_buffer) > self.warmup_steps and self.replay_buffer.freshness > self.minimum_replay_buffer_freshness: 
             self.train()
             self.last_train_size = len(self.replay_buffer)
             # if self.last_train_size == self.replay_buffer_capacity:

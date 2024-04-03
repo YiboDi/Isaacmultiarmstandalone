@@ -75,7 +75,7 @@ for episode in range(num_episodes):
         # mode = env.mode
         end = env._task.is_terminals
         end_mask = end!=1
-        observations = env._task.get_observations() # num_robots * num_robots * 107
+        # observations = env._task.get_observations() # num_robots * num_robots * 107
         # with normal mode, take an action which NN output.
         if env._task.mode == 'normal':
             # print(env._task.current_task.id)

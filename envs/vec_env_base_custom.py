@@ -12,6 +12,7 @@ from omni.isaac.kit import SimulationApp
 import os
 import carb
 import gym
+import time 
 
 import torch
 
@@ -83,7 +84,7 @@ class VecEnvBase(gym.Env):
 
         self._world = World(
             stage_units_in_meters=1.0, rendering_dt=1.0 / 60.0, backend=backend, sim_params=sim_params, device=device,
-            # physics_dt=1.0 / 240.0,           # set physics frequency to 240 hz
+            # physics_dt=1.0 / 60.0,           # set physics frequency to 240 hz
         )
         self._world.add_task(task)
         self._task = task
@@ -150,7 +151,10 @@ class VecEnvBase(gym.Env):
             info(dict): Dictionary of extras data.
         """
         self._task.pre_physics_step(actions)
+        worldstep_start = time.time()
         self._world.step(render=self._render) # steps the physics simulation
+        worldstep_end = time.time()
+        print('worldstep_time: ', worldstep_end - worldstep_start)
 
         self.sim_frame_count += 1
 
