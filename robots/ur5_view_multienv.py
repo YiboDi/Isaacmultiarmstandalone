@@ -91,11 +91,11 @@ class UR5MultiarmEnv(ArticulationView):
             # com_np = link.get_coms()
             # com = list(com_np)
             # self.link_position += com
-            link_pos = link.get_world_poses()[0]
+            link_pos = link.get_local_poses()[0]
             # link_pos = torch.cat(link_pos)
-            self.link_position.append(link_pos.squeeze())
+            self.link_position.append(link_pos)
 
-        self.link_position = torch.cat(self.link_position)
+        self.link_position = torch.cat(self.link_position, dim=1)
 
         return self.link_position
     # @property

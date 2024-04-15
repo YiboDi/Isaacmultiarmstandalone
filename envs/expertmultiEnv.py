@@ -5,6 +5,8 @@ from torch import FloatTensor
 from math import acos, cos, sin
 from numpy.linalg import norm
 
+import time
+
 def angle(a, b):
     # Angle between two vectors1
         return acos(min(np.dot(a, b) / (norm(a) * norm(b)), 1.0))
@@ -33,13 +35,28 @@ class expertmultiEnv(VecEnvBase):
             dones(Union[numpy.ndarray, torch.Tensor]): Buffer of resets/dones data.
             info(dict): Dictionary of extras data.
         """
+        prephysics_start = time.time()
         self._task.pre_physics_step(actions)
+        prephysics_end = time.time()
+        print('pre_physics_time: ', prephysics_end - prephysics_start)
+
+        worldstep_start = time.time()
         self._world.step(render=self._render) # steps the physics simulation
+        worldstep_end = time.time()
+        print('worldstep_time: ', worldstep_end - worldstep_start)
 
         self.sim_frame_count += 1
 
+        obs_start = time.time()
         observations = self._task.get_observations()
+        obs_end = time.time()
+        print('obs_time: ', obs_end - obs_start)
+
+        rewards_start = time.time()
         rewards = self._task.calculate_metrics() # also update self.done
+        rewards_end = time.time()
+        print('rewards_time: ', rewards_end - rewards_start)
+        
         resets = self._task.is_done() # self.reset_buf change if some env meet the conditions
         info = {}
 

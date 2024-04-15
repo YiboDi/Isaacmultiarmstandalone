@@ -72,7 +72,7 @@ class UR5(Robot):
         # damping = [0] * 6
         max_force = [150, 150, 150, 28, 28, 28] # from ur5.py
         max_velocity = [math.degrees(x) for x in [3.15, 3.15, 3.15, 3.2, 3.2, 3.2]] # radians to degrees
-        default_dof_pos = torch.tensor(self._default_dof_pos)
+        default_dof_pos = torch.tensor(self._default_dof_pos, device='cuda') 
         default_dof_pos = [math.degrees(x) for x in self._default_dof_pos] #radians to degrees 
 
         for i, dof in enumerate(dof_paths):

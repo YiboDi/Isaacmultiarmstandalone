@@ -14,6 +14,8 @@ import carb
 import gym
 import time 
 
+import copy
+from default_scene_params import default_physx_params, default_physics_material, default_sim_params
 import torch
 
 from datetime import datetime
@@ -63,7 +65,10 @@ class VecEnvBase(gym.Env):
             enable_extension("omni.kit.livestream.native")
             enable_extension("omni.services.streaming.manager")
 
-    def set_task(self, task, backend="numpy", sim_params=None, init_sim=True) -> None:
+
+        
+
+    def set_task(self, task, backend="torch", sim_params=None, init_sim=True) -> None:
         """ Creates a World object and adds Task to World. 
             Initializes and registers task to the environment interface.
             Triggers task start-up.
@@ -77,10 +82,15 @@ class VecEnvBase(gym.Env):
 
         from omni.isaac.core.world import World
 
-        device = "cpu"
-        if sim_params and "use_gpu_pipeline" in sim_params:
-            if sim_params["use_gpu_pipeline"]:
-                device = "cuda"
+        # backend="torch"
+
+        if sim_params is None:
+            sim_params = {**default_sim_params, **default_physx_params}
+
+        # device = "cpu"
+        # if sim_params and "use_gpu_pipeline" in sim_params:
+        #     if sim_params["use_gpu_pipeline"]:
+        device = "cuda"
 
         self._world = World(
             stage_units_in_meters=1.0, rendering_dt=1.0 / 60.0, backend=backend, sim_params=sim_params, device=device,
