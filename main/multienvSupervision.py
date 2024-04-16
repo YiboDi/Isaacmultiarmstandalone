@@ -50,7 +50,7 @@ network = create_lstm(training_config=training_config)
 # modify for each experiment
 experiment_name = '0416test'
 
-experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRLdata/experiments/' + experiment_name
+experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Di_custom/multiarmRLdata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
