@@ -11,7 +11,7 @@ import pickle
 
 import sys
 import os 
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/dataset')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/dataset')
 # sys.path.append()
 
 from ReplayBuffer import ReplayBufferDataset
@@ -33,14 +33,14 @@ class SAC():
         # self.q1_net = network['Q1']
         # self.q2_net = network['Q2']
         self.policy_key = 'sac_lstm'
-        # self.checkpointsdir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/checkpoints' # where are checkpoints saved
+        # self.checkpointsdir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/checkpoints' # where are checkpoints saved
         self.network = network
         self.log_dir = experiment_dir + '/logs/Training'
         self.checkpointsdir = experiment_dir + '/checkpoints'
         self.experiment_dir = experiment_dir
 
         self.device = 'cuda'
-        # self.writer = SummaryWriter(log_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/logs/Training')
+        # self.writer = SummaryWriter(log_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/logs/Training')
         self.writer = SummaryWriter(log_dir = self.log_dir)
         self.policy_lr = 0.0005
         self.q_lr = 0.001

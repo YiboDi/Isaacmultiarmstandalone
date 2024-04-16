@@ -1,7 +1,7 @@
 import sys
 import torch
 
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/networks')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/networks')
 from lstm_torch_layers import WholeNet
 
 from BaseNet import StochasticActor

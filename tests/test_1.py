@@ -3,7 +3,7 @@ from omni.isaac.kit import SimulationApp
 simulation_app = SimulationApp({"headless": False})
 import sys
 
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/robots')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/robots')
 
 from ur5 import UR5
 from ur5_view import UR5View
@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     world.scene.add_default_ground_plane()
     # usd_path = "Di_custom/multiarmRL/assets/ur5/ur5.usd"
-    usd_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/assets/ur5/ur5.usd'
+    usd_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/assets/ur5/ur5.usd'
 
     # assets_root_path = get_assets_root_path()
     # usd_path = assets_root_path + "/Isaac/Robots/UR10/ur10.usd"
