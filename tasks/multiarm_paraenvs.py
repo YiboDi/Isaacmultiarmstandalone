@@ -2,10 +2,6 @@ import sys
 import time
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/exts')
 
-# from omni.isaac.kit import SimulationApp
-
-# simulation_app = SimulationApp({"headless": False})
-
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.isaac.core.tasks.base_task import BaseTask
@@ -33,9 +29,6 @@ sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/mult
 from taskloader import TaskLoader
 from utils import load_config
 
-from omniisaacgymenvs.robots.articulations.franka import Franka
-from omniisaacgymenvs.robots.articulations.views.franka_view import FrankaView
-
 from omni.isaac.sensor import _sensor
 import omni.kit.commands
 from omni.isaac.cloner import GridCloner
@@ -58,18 +51,8 @@ class MultiarmTask(BaseTask):
         self.config = load_config(path='/home/tp2/papers/decentralized-multiarm/configs/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
-        # self.current_task = self.taskloader.get_next_task()
         self._num_envs = 3
         self._env_spacing = 5
-        # self.current_tasks = []
-        # for i in range(self._num_envs):
-        #     current_task = self.taskloader.get_next_task()
-        #     while i != 0 and len(current_task.start_config) != len(self.current_tasks[0].start_config):
-        #         current_task = self.taskloader.get_next_task()
-
-        #     self.current_tasks.append(self.taskloader.get_next_task())
-
-        # self.num_agents=len(self.current_tasks[0].start_config)
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
 
@@ -83,7 +66,6 @@ class MultiarmTask(BaseTask):
         define_prim(self.default_zero_env_path)
 
         self._device = "cuda"
-        # torch.cuda.set_device(self._device)
 
         self.collision_penalty = -1
         self.delta_pos_reward = 0
@@ -97,7 +79,6 @@ class MultiarmTask(BaseTask):
         self.num_franka_dofs = 6
 
         self._max_episode_length = 300
-        # self._max_episode_length = 500 # from config
 
         self.dof_lower_limits = torch.tensor([-2 * pi, -2 * pi, -pi, -2 * pi, -2 * pi, -2 * pi], device=self._device)
         self.dof_upper_limits = torch.tensor([2 * pi, 2 * pi, pi, 2 * pi, 2 * pi, 2 * pi], device=self._device)
@@ -131,18 +112,10 @@ class MultiarmTask(BaseTask):
         # franka_dof_targets should be initialized to be the same as the start config
         self.franka_dof_targets = torch.stack([torch.tensor(task.start_config, device = self._device) for task in self.current_tasks])
 
-        # dof_limits = self._franka_list[0].get_dof_limits()
-        # self.franka_dof_lower_limits = dof_limits[0, :, 0].to(device=self._device)
         self.collision = torch.zeros((self._num_envs, self.num_agents), device=self._device)
         # add is_terminals to check if a individual robot terminate (collide or reach its target)
-        # self.is_terminals = torch.zeros((self._num_envs, self.num_agents), device=self._device)
         # define is_terminals to check if the env is terminal because of collision or success
         self.is_terminals = torch.zeros(self._num_envs, device=self._device)
-
-        # for i in range(self._num_envs):
-        #     for j in range(self.num_agents):
-        #         self._franka_list[j].set_joint_positions(self.current_tasks[i].start_config[j])
-        #         self._franka_list[j].target.set_local_pose(self.current_tasks[i].target_eff_pose[j])
 
         # use batch operation
         for i in range(self.num_agents):
@@ -213,11 +186,6 @@ class MultiarmTask(BaseTask):
         for i in range(4):
             ur5 = UR5(prim_path = self.default_zero_env_path + '/franka{}'.format(i), usd_path=usd_path)
             ee = VisualCylinder(prim_path=self.default_zero_env_path + "/franka{}/ee_link/ee".format(i), radius=0.02, height=0.1, name='UR5EE')
-            # target = VisualCylinder(prim_path=self.default_zero_env_path + "/Franka/franka{}/target".format(i), radius=0.02, height=0.1,
-            #                             color=np.array([0.8, 0.8, 0.8]),
-            #                             # translation=target_pos if target_pos is not None else [0,0,-5],
-            #                             # orientation=target_ori if target_ori is not None else None,
-            #                             name='UR5Target')
 
     def get_target(self):
         for i in range(4):
@@ -258,25 +226,6 @@ class MultiarmTask(BaseTask):
 
         
         """
-        # # test root link
-        # # Get the stage which contains the scene graph
-        # stage = omni.usd.get_context().get_stage()
-
-        # # Define the path to your robot's primary USD (Universal Scene Description) file
-        # robot_path = self.default_zero_env_path + '/franka0'  # Adjust this to your robot's actual path in the scene graph
-
-        # # Access the robot's prim (primitive object in USD)
-        # robot_prim = stage.GetPrimAtPath(robot_path)
-
-        # # Check if the prim is valid and has articulations
-        # if robot_prim.IsValid():
-        #     articulation_root = omni.physx.get_articulation_root_body(robot_prim)
-        #     if articulation_root:
-        #         print(f"The root articulation of the robot is: {articulation_root.GetName()}")
-        #     else:
-        #         print("No articulation root found for the specified robot.")
-        # else:
-        #     print("Robot prim is not valid.")
 
         #updata tasks list
         self.update_tasks()
@@ -297,7 +246,6 @@ class MultiarmTask(BaseTask):
 
 
         # method below involve more overhead due to the repeated tensor initializations
-        # start_config = torch.stack([torch.tensor(task.start_config, device=self._device) for task in self.current_tasks])
         start_config = [task.start_config for task in self.current_tasks]
         start_config = torch.tensor(start_config, device=self._device)
 
@@ -309,39 +257,6 @@ class MultiarmTask(BaseTask):
         Reset the franka (positions, position targets, velocities, and local pose) to the start configuration.
         """
         # shape of base_pos is (num_envs, num_agents, 3), shape of base_ori is (num_envs, num_agents, 4), same to target_eff
-
-
-        # base_pos_list_envs = []
-        # base_ori_list_envs = []
-        # target_pos_list_envs = []
-        # target_ori_list_envs = []
-        # for current_task in self.current_tasks:
-        #     # Use a list comprehension to gather base positions for all agents in the current task
-        #     base_pos_list = [torch.tensor(current_task.base_poses[i][0], device=self._device) for i in range(self.num_agents)]
-        #     base_ori_list = [torch.tensor(current_task.base_poses[i][1], device=self._device) for i in range(self.num_agents)]
-        #     target_pos_list = [torch.tensor(current_task.target_eff_poses[i][0], device=self._device) for i in range(self.num_agents)]
-        #     target_ori_list = [torch.tensor(current_task.target_eff_poses[i][1], device=self._device) for i in range(self.num_agents)]
-        #     # Stack the base positions for the current task along dim=1
-        #     base_pos_tensor = torch.stack(base_pos_list, dim=0)
-        #     base_pos_list_envs.append(base_pos_tensor)
-
-        #     base_ori_tensor = torch.stack(base_ori_list, dim=0)
-        #     base_ori_list_envs.append(base_ori_tensor)
-
-        #     target_pos_tensor = torch.stack(target_pos_list, dim=0)
-        #     target_pos_list_envs.append(target_pos_tensor)
-
-        #     target_ori_tensor = torch.stack(target_ori_list, dim=0)
-        #     target_ori_list_envs.append(target_ori_tensor)
-
-        # # Stack the tensors for all tasks along dim=0
-        # # shape is [num_envs, num_agents, 3or4]
-        # base_pos = torch.stack(base_pos_list_envs, dim=0)
-        # base_ori = torch.stack(base_ori_list_envs, dim=0)
-        # base_ori = base_ori[:, :, [3,0,1,2]]
-        # target_eff_pos = torch.stack(target_pos_list_envs, dim=0)
-        # target_eff_ori = torch.stack(target_ori_list_envs, dim=0)
-        # target_eff_ori = target_eff_ori[:, :, [3,0,1,2]]
 
         base_pos_list_envs, base_ori_list_envs = [], []
         target_pos_list_envs, target_ori_list_envs = [], []
@@ -369,12 +284,21 @@ class MultiarmTask(BaseTask):
 
                 orientations = torch.zeros((self._num_envs,4),device=self._device)
                 orientations[:,0] = 1.0
+
+                tran = base_pos[:,i,:]
+                orie = base_ori[:,i,:]
                 
-                self._franka_list[i].set_local_poses(translations = base_pos[:,i,:], orientations = base_ori[:,i,:])
-                pos = self._franka_list[i].get_local_poses()
+                self._franka_list[i].set_local_poses(translations = tran, orientations = orie)
+                pos = self._franka_list[i].get_local_poses()[0]
+                pos_link =  self._franka_list[i].base_link.get_local_poses()[0]
+                print('base_pos from config'+ str(tran))
+                print('base_pos from sim'+ str(pos))
+                print('pos of base_link from sim'+ str(pos_link))
                 # self._franka_list[i].world.set_local_poses(translations = base_pos[:,i,:], orientations = base_ori[:,i,:])
                 # self._franka_list[i].base_link.set_local_poses(translations = base_pos[:,i,:], orientations = base_ori[:,i,:])
                 self._target_list[i].set_local_poses(translations = target_eff_pos[:,i,:], orientations = target_eff_ori[:,i,:])
+                pos = self._target_list[i].get_local_poses()
+
                 # check local poses of robots and its config
                 # print(str(self._franka_list[i].base_link.get_local_poses()) + 'and the configurations:')
                 # for current_task in self.current_tasks:
@@ -396,12 +320,6 @@ class MultiarmTask(BaseTask):
                 # self._franka_list[i].world.set_local_poses(translations = translations) 
                 # self._franka_list[i].base_link.set_local_poses(translations = translations) 
                 self._target_list[i].set_local_poses(translations = translations)
-
-        # test to solve the flashing cylinder problem
-        # didn't work after testing
-        # self._franka_list[i].ee.set_local_poses(translations = torch.zeros((self._num_envs,3),device=self._device), orientations = torch.zeros((self._num_envs,4),device=self._device))
-        # # create a FrankaView for all robots under num_envs and num_agents
-        # self.frankaview = UR5MultiarmEnv(prim_paths_expr=self.default_base_env_path + "/.*/franka\d*", name="frankas_view")
 
         self.progress_buf = 0
 
@@ -444,156 +362,6 @@ class MultiarmTask(BaseTask):
         # targets_pos = torch.stack(target_pos_list, dim=0)
 
 
-
-
-    # def get_observation(self, this_franka):
-    #     """
-    #     shape of self.ob is (self._num_envs, self.num_agents, self._num_observation)
-    #     """
-        
-
-    #     pos = np.array(this_franka.get_world_poses()[0]) # the base position of this_franka
-    #     sorted_franka_list = sorted(self._franka_list[:self.num_agents], reverse=True, key=lambda agent: 
-    #                                 np.linalg.norm(pos - np.array(agent.get_world_poses()[0]))) # get_world_poses() should return tensor with two element: position and orientation
-    #     # ob = torch.zeros((self.num_agents, self._num_observation), device = self._device) 
-    #     for i, agent in enumerate(sorted_franka_list[0:self.num_agents]):
-
-    #         dof_pos = agent.get_joint_positions() # return tensor
-    #         # set the pos of ee identical to the pos of ee_link
-    #         ee_pos, ee_rot = agent.ee_link.get_world_poses()[0], agent.ee_link.get_world_poses()[1]
-
-    #         # positions = ee_pos.squeeze()
-    #         # orientations = ee_rot.squeeze()
-    #         agent.ee.set_world_poses(positions = ee_pos, orientations = ee_rot) # or set local poses to be all 0 so that same with parent ee_link
-
-    #         # local_pose is the target pos relative to the base of robot
-    #         # target_eff_pose = agent.target.get_world_poses()
-    #         target_eff_pose = self._target_list[i].get_local_poses()
-    #         # target_eff_pose = torch.tensor(np.concatenate(target_eff_pose, dim=0))
-    #         target_eff_pose = torch.cat(target_eff_pose, dim=1)
-    #         target_eff_pose = torch.cat([target_eff_pose, target_eff_pose], dim=1) # observation contains historical frame of target_eff_pose
-    #         # goal_config = agent.goal_config
-
-    #         # # link position is the center of mass, for simplification using pos of links here
-    #         # link_position = agent.get_link_positions() # get link positions of links, 30 for ur5, why 30? reason: 10links*3xyz
-
-    #         # here use center of mass
-    #         link_position = agent.get_link_coms() 
-
-    #         base_pose = agent.base_link.get_local_poses() # get the position of the base
-    #         base_pose = torch.cat(base_pose, dim=-1).squeeze()
-
-    #         if self.progress_buf == 1:
-    #         # if self.ob == torch.zeros((self.num_agents, self._num_observation)): # if first step (no history yet)
-    #          self.ob[:, i, 0:6] = dof_pos
-    #          self.ob[:, i, 6:12] = dof_pos
-    #          self.ob[:, i, 12:15] = ee_pos
-    #          self.ob[:, i, 15:19] = ee_rot
-    #          self.ob[:, i, 19:22] = ee_pos
-    #          self.ob[:, i, 22:26] = ee_rot
-    #          self.ob[:, i, 26:40] = target_eff_pose # 7*2
-    #          self.ob[:, i, 40:70] = link_position
-    #          self.ob[:, i, 70:100] = link_position
-    #          self.ob[:, i, 100:107] = base_pose
-
-    #         else:
-    #          self.ob[:, i, 0:6] = self.ob[:, i, 6:12]
-    #          self.ob[:, i, 6:12] = dof_pos
-    #          self.ob[:, i, 12:15] = self.ob[:, i, 19:22]
-    #          self.ob[:, i, 15:19] = self.ob[:, i, 22:26]
-    #          self.ob[:, i, 19:22] = ee_pos
-    #          self.ob[:, i, 22:26] = ee_rot
-    #          self.ob[:, i, 26:40] = target_eff_pose # 7*2
-    #          self.ob[:, i, 40:70] = self.ob[:, i, 70:100]
-    #          self.ob[:, i, 70:100] = link_position
-    #          self.ob[:, i, 100:107] = base_pose
-    #     # print('end of one step \n')
-
-    #     return self.ob # observation of a single franka (this_franka), shape of num_agents*ob of a single agent
-    # def get_observation(self, this_franka):
-    #     """
-    #     shape of self.ob is (self._num_envs, self.num_agents, self._num_observation)
-    #     """
-        
-
-    #     pos = this_franka.get_world_poses()[0] # the base position of this_franka
-
-    #     sorted_franka_list = sorted(self._franka_list[:self.num_agents], reverse=True, key=lambda agent: 
-    #                                 np.linalg.norm(pos - np.array(agent.get_world_poses()[0]))) # get_world_poses() should return tensor with two element: position and orientation
-    #     # ob = torch.zeros((self.num_agents, self._num_observation), device = self._device) 
-    #     for i, agent in enumerate(sorted_franka_list[0:self.num_agents]):
-
-    #         dof_pos = agent.get_joint_positions() # return tensor
-    #         # set the pos of ee identical to the pos of ee_link
-    #         ee_pos, ee_rot = agent.ee_link.get_world_poses()[0], agent.ee_link.get_world_poses()[1]
-    #         agent.ee.set_world_poses(positions = ee_pos, orientations = ee_rot) # or set local poses to be all 0 so that same with parent ee_link
-    #         # local pose into self.ob
-    #         ee_pos, ee_rot = agent.ee_link.get_local_poses()[0], agent.ee_link.get_local_poses()[1]
-
-    #         # local_pose is the target pos relative to the base of robot
-    #         # target_eff_pose = agent.target.get_world_poses()
-    #         target_eff_pose = self._target_list[i].get_local_poses()
-    #         # target_eff_pose = torch.tensor(np.concatenate(target_eff_pose, dim=0))
-    #         target_eff_pose = torch.cat(target_eff_pose, dim=1)
-    #         target_eff_pose = torch.cat([target_eff_pose, target_eff_pose], dim=1) # observation contains historical frame of target_eff_pose
-    #         # goal_config = agent.goal_config
-
-    #         # # link position is the center of mass, for simplification using pos of links here
-    #         # link_position = agent.get_link_positions() # get link positions of links, 30 for ur5, why 30? reason: 10links*3xyz
-
-    #         # here use center of mass
-    #         link_position = agent.get_link_coms() 
-
-    #         base_pose = agent.base_link.get_local_poses() # get the position of the base
-    #         base_pose = torch.cat(base_pose, dim=-1).squeeze()
-
-    #         if self.progress_buf == 1:
-    #         # if self.ob == torch.zeros((self.num_agents, self._num_observation)): # if first step (no history yet)
-    #          self.ob[:, i, 0:6] = dof_pos
-    #          self.ob[:, i, 6:12] = dof_pos
-    #          self.ob[:, i, 12:15] = ee_pos
-    #          self.ob[:, i, 15:19] = ee_rot
-    #          self.ob[:, i, 19:22] = ee_pos
-    #          self.ob[:, i, 22:26] = ee_rot
-    #          self.ob[:, i, 26:40] = target_eff_pose # 7*2
-    #          self.ob[:, i, 40:70] = link_position
-    #          self.ob[:, i, 70:100] = link_position
-    #          self.ob[:, i, 100:107] = base_pose
-
-    #         else:
-    #          self.ob[:, i, 0:6] = self.ob[:, i, 6:12]
-    #          self.ob[:, i, 6:12] = dof_pos
-    #          self.ob[:, i, 12:15] = self.ob[:, i, 19:22]
-    #          self.ob[:, i, 15:19] = self.ob[:, i, 22:26]
-    #          self.ob[:, i, 19:22] = ee_pos
-    #          self.ob[:, i, 22:26] = ee_rot
-    #          self.ob[:, i, 26:40] = target_eff_pose # 7*2
-    #          self.ob[:, i, 40:70] = self.ob[:, i, 70:100]
-    #          self.ob[:, i, 70:100] = link_position
-    #          self.ob[:, i, 100:107] = base_pose
-    #     # print('end of one step \n')
-
-    #     return self.ob # observation of a single franka (this_franka), shape of num_agents*ob of a single agent
-
-
-    # def get_observations(self):
-    #     """
-    #     shape of self.obs is (self._num_envs, self.num_agents, self.num_agents, self._num_observation)
-    #     """
-        
-    #     # firstly sort the self._franka_list by base distance, furthest to closest, for each env
-
-    #     # obs = torch.zeros((self._num_envs, self.num_agents, self.num_agents, self._num_observation), device = self._device)
-    #     """
-    #     computation should be slow with the following method, figure it out if possible to manipulate with torch operation
-    #     """
-    #     # for i in range(self._num_envs):
-    #     for j, agent in enumerate(self._franka_list[0:self.num_agents]):
-    #         self.obs[:, j, :, :] = self.get_observation(this_franka=agent)
-
-
-    #     return self.obs # observation of the whole system, shape of num_agents*num_agents*ob of a single agent(107)
-
     def get_observation(self):
         ob = [[] for _ in range(self.num_agents)]
         for i, agent in enumerate(self._franka_list[0:self.num_agents]):
@@ -625,19 +393,6 @@ class MultiarmTask(BaseTask):
              self.ob[:, i, 70:100] = link_position
              self.ob[:, i, 100:107] = base_pose
 
-                # ob[i] = torch.cat((
-                #     dof_pos.view(self._num_envs, 1, self.num_actions),
-                #     dof_pos.view(self._num_envs, 1, self.num_actions),
-                #     ee_pos.view(self._num_envs, 1, 3),
-                #     ee_rot.view(self._num_envs, 1, 4),
-                #     ee_pos.view(self._num_envs, 1, 3),
-                #     ee_rot.view(self._num_envs, 1, 4),
-                #     target_eff_pose.view(self._num_envs, 1, 14),
-                #     link_position.view(self._num_envs, 1, 30),
-                #     link_position.view(self._num_envs, 1, 30),
-                #     base_pose.view(self._num_envs, 1, 7)
-                # ), dim=-1)
-
             else:
              self.ob[:, i, 0:6] = self.ob[:, i, 6:12]
              self.ob[:, i, 6:12] = dof_pos
@@ -648,22 +403,6 @@ class MultiarmTask(BaseTask):
              self.ob[:, i, 26:40] = target_eff_pose # 7*2
              self.ob[:, i, 40:70] = self.ob[:, i, 70:100]
              self.ob[:, i, 70:100] = link_position
-            #  self.ob[:, i, 100:107] = base_pose
-                # ob[i] = torch.cat((
-                #     self.ob[:, i, 0:6],
-                #     dof_pos.view(self._num_envs, 1, self.num_actions),
-                #     self.ob[:, i, 12:15],
-                #     self.ob[:, i, 15:19],
-                #     ee_pos.view(self._num_envs, 1, 3),
-                #     ee_rot.view(self._num_envs, 1, 4),
-                #     target_eff_pose.view(self._num_envs, 1, 14),
-                #     self.ob[:, i, 40:70],
-                #     link_position.view(self._num_envs, 1, 30),
-                #     base_pose.view(self._num_envs, 1, 7)
-                # ), dim=-1)
-
-        # self.ob = torch.cat((ob[i] for i in range(self.num_agents)), dim=1)
-        # self.ob  = torch.cat(ob, dim=1)
 
         return self.ob
 

@@ -48,7 +48,7 @@ with open(file_path, 'r') as file:
 network = create_lstm(training_config=training_config)
 # print(network)
 # modify for each experiment
-experiment_name = '0415test'
+experiment_name = '0416test'
 
 experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRLdata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
