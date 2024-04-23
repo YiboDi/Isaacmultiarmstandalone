@@ -36,6 +36,7 @@ from math import pi
 import sys 
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone')
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/robots')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/OmniIsaacGymEnvs/omniisaacgymenvs')
 from taskloader import TaskLoader
 from utils import load_config
 

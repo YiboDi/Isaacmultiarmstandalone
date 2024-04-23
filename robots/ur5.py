@@ -31,7 +31,7 @@ class UR5(Robot):
 
         self._position = torch.tensor([1.0, 0.0, 0.0]) if translation is None else translation
         self._orientation = torch.tensor([0.7071068, 0, 0, 0.7071068]) if orientation is None else orientation
-        self._default_dof_pos = torch.tensor([0, 0, 0, 0, 0, 0]) if default_dof_pos is None else default_dof_pos
+        self._default_dof_pos = torch.tensor([0, 0, 0, 0, 0, 0], device='cuda') if default_dof_pos is None else default_dof_pos
         add_reference_to_stage(usd_path=self._usd_path, prim_path=prim_path)
         
         super().__init__(
@@ -72,7 +72,7 @@ class UR5(Robot):
         # damping = [0] * 6
         max_force = [150, 150, 150, 28, 28, 28] # from ur5.py
         max_velocity = [math.degrees(x) for x in [3.15, 3.15, 3.15, 3.2, 3.2, 3.2]] # radians to degrees
-        default_dof_pos = torch.tensor(self._default_dof_pos, device='cuda') 
+        default_dof_pos = self._default_dof_pos
         default_dof_pos = [math.degrees(x) for x in self._default_dof_pos] #radians to degrees 
 
         for i, dof in enumerate(dof_paths):

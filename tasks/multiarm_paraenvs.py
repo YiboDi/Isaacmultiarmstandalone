@@ -15,7 +15,7 @@ from omni.isaac.core.utils.torch.rotations import *
 from omni.isaac.cloner import Cloner
 import omni.kit
 from pxr import Usd, UsdGeom
-from omni.isaac.core.prims import XFormPrimView, GeometryPrimView
+from omni.isaac.core.prims import XFormPrimView, GeometryPrimView, RigidPrimView
 
 from gym import spaces
 import numpy as np
@@ -51,7 +51,7 @@ class MultiarmTask(BaseTask):
         self.config = load_config(path='/home/tp2/papers/decentralized-multiarm/configs/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
-        self._num_envs = 3
+        self._num_envs = 1
         self._env_spacing = 5
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
@@ -119,7 +119,7 @@ class MultiarmTask(BaseTask):
 
         # use batch operation
         for i in range(self.num_agents):
-            self._franka_list[i].set_local_poses(torch.tensor(current_task.start_config[i], device=self._device) for current_task in self.current_tasks)
+            self._franka_list[i].set_world_poses(torch.tensor(current_task.start_config[i], device=self._device) for current_task in self.current_tasks)
             self._franka_list[i].set_joint_positions(self.franka_dof_targets[:, i])
             self._franka_list[i].target.set_local_pose(torch.tensor(current_task.target_eff_pose[i], device=self._device) for current_task in self.current_tasks)
 
@@ -152,13 +152,15 @@ class MultiarmTask(BaseTask):
                                 ) # create a View for all the robots in all envs
             franka.ee = GeometryPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka{}/ee_link/ee".format(i), name="franka{}_view_ee".format(i))
             target = GeometryPrimView(prim_paths_expr=self.default_base_env_path + "/.*/target{}".format(i), name="franka{}_view_target".format(i))
+            franka.base_link = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka{}/base_link".format(i), name="franka{}_view_base_link".format(i))
 
             scene.add(franka)
             scene.add(franka.ee)
             scene.add(target)
+            scene.add(franka.base_link)
 
-            for link in franka.link_for_contact:
-                scene.add(link)
+            # for link in franka.link_for_contact:
+            #     scene.add(link)
 
             self._franka_list.append(franka)
             self._target_list.append(target)
@@ -167,7 +169,7 @@ class MultiarmTask(BaseTask):
             translations = torch.zeros((self._num_envs, 3), device=self._device)
             orientations = torch.zeros((self._num_envs, 4), device=self._device)
             orientations[:, 0] = 1.0
-            franka.set_local_poses(translations, orientations)
+            franka.set_world_poses(translations, orientations)
 
         # create a FrankaView for all robots under num_envs and num_agents
         self.frankaview = UR5MultiarmEnv(prim_paths_expr=self.default_base_env_path + "/.*/franka\\d*", name="frankas_view")
@@ -288,16 +290,31 @@ class MultiarmTask(BaseTask):
                 tran = base_pos[:,i,:]
                 orie = base_ori[:,i,:]
                 
-                self._franka_list[i].set_local_poses(translations = tran, orientations = orie)
+                self._franka_list[i].set_world_poses(positions = tran, orientations = orie) # set base link local pose
+                # self._franka_list[i].base_link.set_local_poses(translations = tran, orientations = orie)
+                # test
                 pos = self._franka_list[i].get_local_poses()[0]
                 pos_link =  self._franka_list[i].base_link.get_local_poses()[0]
-                print('base_pos from config'+ str(tran))
-                print('base_pos from sim'+ str(pos))
-                print('pos of base_link from sim'+ str(pos_link))
-                # self._franka_list[i].world.set_local_poses(translations = base_pos[:,i,:], orientations = base_ori[:,i,:])
-                # self._franka_list[i].base_link.set_local_poses(translations = base_pos[:,i,:], orientations = base_ori[:,i,:])
-                self._target_list[i].set_local_poses(translations = target_eff_pos[:,i,:], orientations = target_eff_ori[:,i,:])
-                pos = self._target_list[i].get_local_poses()
+                world_pos = self._franka_list[i].get_world_poses()[0]
+                world_pos_link =  self._franka_list[i].base_link.get_world_poses()[0]
+
+                print('base_pos from config '+ str(tran))
+                print('base_pos from sim '+ str(pos))
+                print('world_base_pos from sim '+ str(world_pos))
+                print('pos of base_link from sim '+ str(pos_link))
+                print('world pos of base_link from sim '+ str(world_pos_link))
+                print()
+
+
+                trans, orien = target_eff_pos[:,i,:], target_eff_ori[:,i,:]
+                self._target_list[i].set_world_poses(positions = trans, orientations = orien)
+                # test
+                pos = self._target_list[i].get_local_poses()[0]
+                world_pos = self._target_list[i].get_world_poses()[0]
+                print('target_pos from config '+ str(trans))
+                print('target_pos from sim '+ str(pos))
+                print('world_pos from sim '+ str(world_pos))
+                print()
 
                 # check local poses of robots and its config
                 # print(str(self._franka_list[i].base_link.get_local_poses()) + 'and the configurations:')
@@ -315,11 +332,11 @@ class MultiarmTask(BaseTask):
             elif i >= self.num_agents:
                 translations = torch.zeros(self._num_envs,3, device=self._device)
                 translations[:,2] = -10
-                self._franka_list[i].set_local_poses(translations = translations)
+                self._franka_list[i].set_world_poses(positions = translations)
                 # self._franka_list[i].target.set_local_poses(translations = translations)
                 # self._franka_list[i].world.set_local_poses(translations = translations) 
                 # self._franka_list[i].base_link.set_local_poses(translations = translations) 
-                self._target_list[i].set_local_poses(translations = translations)
+                self._target_list[i].set_world_poses(positions = translations)
 
         self.progress_buf = 0
 
@@ -337,7 +354,9 @@ class MultiarmTask(BaseTask):
         # the following fomular should be thought over, the relationship with self.dt
         scaled_action = actions * self.max_velocity * self.dt * 3 # last scaler is a custom scaler to accelerate the training
         # targets = self.franka_dof_targets + self.dt * self.actions * self.action_scale # shape of self.num_agents*self.num_action, adapt self.franka_dof_targets based on its last value, making it changing smoothly
-        targets = self.franka_dof_targets + scaled_action 
+        # targets = self.franka_dof_targets + scaled_action 
+        # try directly set the scaled action to robot instead of accumulation
+        targets = scaled_action
         self.franka_dof_targets[:] = tensor_clamp(targets, self.dof_lower_limits, self.dof_upper_limits)
         # not certain about the indices
         # for i in range(self._num_envs):
@@ -366,8 +385,19 @@ class MultiarmTask(BaseTask):
         ob = [[] for _ in range(self.num_agents)]
         for i, agent in enumerate(self._franka_list[0:self.num_agents]):
             dof_pos = agent.get_joint_positions(clone=False).to(self._device)
+
+            eepos_pre = agent.ee.get_world_poses()
+
             ee_pos, ee_rot = agent.ee_link.get_world_poses(clone=False)[0].to(self._device), agent.ee_link.get_world_poses(clone=False)[1].to(self.device)
             agent.ee.set_world_poses(positions = ee_pos, orientations = ee_rot)
+            eelinkpos = agent.ee_link.get_world_poses()
+            eepos_post = agent.ee.get_world_poses()
+
+            print('ee pos pre: {}'.format(eepos_pre))
+            print('ee pos post: {}'.format(eepos_post))
+            print('ee link pos: {}'.format(eelinkpos))
+
+
 
             target_eff_pose = self._target_list[i].get_local_poses()
             target_eff_pose = torch.cat(target_eff_pose, dim=1).to(self._device)

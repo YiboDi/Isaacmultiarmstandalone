@@ -6,7 +6,7 @@ sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarms
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/tasks')
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/algorithms')
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/networks')
-import gym
+# import gym
 # from vec_env_base_custom import VecEnvBase
 import torch
 from SAC import SAC
@@ -48,7 +48,7 @@ with open(file_path, 'r') as file:
 network = create_lstm(training_config=training_config)
 # print(network)
 # modify for each experiment
-experiment_name = '0416test'
+experiment_name = '0423test'
 
 experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Di_custom/multiarmRLdata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
@@ -86,6 +86,7 @@ for episode in range(num_episodes):
         inference_start = time.time()
         actions = model.inference(obs) # input in network has shape of batch_size * seq_len * input_size = num_robots * num_robots * 107
         inference_end = time.time()
+        # self.inference_time = inference_end - inference_start
         print('inference time: ', inference_end-inference_start)
 
         # shape of actions is (batch size, 6)
