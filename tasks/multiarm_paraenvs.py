@@ -288,7 +288,7 @@ class MultiarmTask(BaseTask):
                 tran = base_pos[:,i,:]
                 orie = base_ori[:,i,:]
                 
-                self._franka_list[i].set_local_poses(translations = tran, orientations = orie)
+                self._franka_list[i].base_link.set_local_poses(translations = tran, orientations = orie)
                 pos = self._franka_list[i].get_local_poses()[0]
                 pos_link =  self._franka_list[i].base_link.get_local_poses()[0]
                 print('base_pos from config'+ str(tran))
@@ -315,10 +315,10 @@ class MultiarmTask(BaseTask):
             elif i >= self.num_agents:
                 translations = torch.zeros(self._num_envs,3, device=self._device)
                 translations[:,2] = -10
-                self._franka_list[i].set_local_poses(translations = translations)
+                # self._franka_list[i].set_local_poses(translations = translations)
                 # self._franka_list[i].target.set_local_poses(translations = translations)
                 # self._franka_list[i].world.set_local_poses(translations = translations) 
-                # self._franka_list[i].base_link.set_local_poses(translations = translations) 
+                self._franka_list[i].base_link.set_local_poses(translations = translations) 
                 self._target_list[i].set_local_poses(translations = translations)
 
         self.progress_buf = 0
