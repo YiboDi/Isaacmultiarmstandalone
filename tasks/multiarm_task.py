@@ -193,6 +193,7 @@ class MultiarmTask(BaseTask):
             scene.add(franka)
             scene.add(franka.ee)
             scene.add(franka.target)
+            scene.add(franka.links_contact)
 
             for link in franka.link_for_contact:
                 scene.add(link)

@@ -51,8 +51,8 @@ class MultiarmTask(BaseTask):
         self.config = load_config(path='/home/tp2/papers/decentralized-multiarm/configs/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
-        self._num_envs = 1
-        self._env_spacing = 5
+        self._num_envs = 128
+        self._env_spacing = 0
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
 
@@ -188,6 +188,13 @@ class MultiarmTask(BaseTask):
         self.frankaview.link_for_contact = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*/.*_link", name="frankas_view_link_for_contact")
         self.frankaview.ee_link = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*/ee_link", name="frankas_view_ee_link")
         self.targetview = GeometryPrimView(prim_paths_expr=self.default_base_env_path + "/.*/target.*", name="targets_view")
+
+        scene.add(self.frankaview)
+        scene.add(self.targetview)
+        scene.add(self.frankaview.base_link)
+        scene.add(self.frankaview.links)
+        scene.add(self.frankaview.link_for_contact)
+        scene.add(self.frankaview.ee_link)
         
         # set default camera viewport position and target
         self.set_initial_camera_params()
@@ -455,9 +462,9 @@ class MultiarmTask(BaseTask):
 
         return self.ob
 
-    def pre_observations(self): # give up
+    def pre_observations(self): 
         dof_pos = self.frankaview.get_joint_positions(clone=False)
-        dof_pos = dof_pos.to(self._device)
+        dof_pos = dof_pos.view(self._num_envs, 4, 6)[:,:self.num_agents,:].to(self._device)
         self.ee_pos, self.ee_rot = self.frankaview.ee_link.get_world_poses(clone=False)
         self.ee_pos = self.ee_pos.view(self._num_envs, 4, 3)[:,:self.num_agents,:].to(self._device)
         self.ee_rot = self.ee_rot.view(self._num_envs,4,4)[:,:self.num_agents,:].to(self._device)
@@ -508,8 +515,8 @@ class MultiarmTask(BaseTask):
         obs_start = time.time()
         # firstly sort the self._franka_list by base distance, furthest to closest, for each env
         ob_start = time.time()
-        self.get_observation() # get dof_pos 
-        # self.pre_observations() # get other ob, give up after testing
+        # self.get_observation() # get dof_pos 
+        self.pre_observations() # get other ob, give up after testing
         ob_end = time.time()
         print('get_observation time:', ob_end - ob_start)
 
@@ -582,11 +589,13 @@ class MultiarmTask(BaseTask):
             # ori_delta = np.linalg.norm(self._franka_list[i].ee_link.get_world_poses()[1] - self._target_list[i].get_world_poses()[1], axis=1, keepdims=True)
         # ee_pos = self.frankaview.ee_link.get_world_poses()[0].to(self._device).view(self._num_envs, 4, 3)[:,:self.num_agents,:]
         # target_pos = self.targetview.get_world_poses()[0].to(self._device).view(self._num_envs, 4, 3)[:,:self.num_agents,:]
-        self.pos_delta = torch.norm(self.ob[:, :, 19:22] - self.ob[:, :, 26:29], dim=-1, keepdim=True).squeeze(dim=-1)
+        # self.pos_delta = torch.norm(self.ob[:, :, 19:22] - self.ob[:, :, 26:29], dim=-1, keepdim=True).squeeze(dim=-1)
+        self.pos_delta = torch.norm(self.ee_pos - self.target_eff_pose[:,:,:3], dim=-1, keepdim=True).squeeze(dim=-1)
 
         # ee_ori = self.frankaview.ee_link.get_world_poses()[1].to(self._device).view(self._num_envs, 4, 4)[:,:self.num_agents,:]
         # target_ori = self.targetview.get_world_poses()[1].to(self._device).view(self._num_envs, 4, 4)[:,:self.num_agents,:]
-        self.ori_delta = torch.norm(self.ob[:, :, 22:26] - self.ob[:, :, 29:33], dim=-1, keepdim=True).squeeze(dim=-1)
+        # self.ori_delta = torch.norm(self.ob[:, :, 22:26] - self.ob[:, :, 29:33], dim=-1, keepdim=True).squeeze(dim=-1)
+        self.ori_delta = torch.norm(self.ee_rot - self.target_eff_pose[:,:,3:], dim=-1, keepdim=True).squeeze(dim=-1)
 
 
 
