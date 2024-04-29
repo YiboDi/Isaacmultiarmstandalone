@@ -27,7 +27,7 @@ class UR5MultiarmEnv(ArticulationView):
         self.wrist_1_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_1_link", name=name+'_wrist_1_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
         self.wrist_2_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_2_link", name = name+'_wrist_2_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
         self.wrist_3_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/wrist_3_link", name=name+'_wrist_3_link', track_contact_forces=True, prepare_contact_sensors=True, reset_xform_properties=False,)
-        self.ee_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/ee_link", 
+        self.ee_link = RigidPrimView(prim_paths_expr = prim_paths_expr + "/ee_link", name = name+'_ee_link',
                                         # track_contact_forces=True, prepare_contact_sensors=True,
                                         )
         self.tool0 = RigidPrimView(prim_paths_expr = prim_paths_expr + "/tool0")

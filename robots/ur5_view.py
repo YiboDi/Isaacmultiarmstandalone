@@ -37,6 +37,9 @@ class UR5View(ArticulationView):
         self.tool0 = RigidPrimView(prim_paths_expr = prim_paths_expr + "/tool0")
         self.world = RigidPrimView(prim_paths_expr = prim_paths_expr + "/world")
 
+        self.links = RigidPrimView(prim_paths_expr = prim_paths_expr + "/.*link|tool0|world")
+        self.links_contact = RigidPrimView(prim_paths_expr = prim_paths_expr + "/.*link", track_contact_forces= True, prepare_contact_sensors=True,)
+
         self.link_list = [self.base_link,
                           self.shoulder_link,
                           self.upper_arm_link,
@@ -93,18 +96,22 @@ class UR5View(ArticulationView):
         # self._gripper_indices = [self.get_dof_index("panda_finger_joint1"), self.get_dof_index("panda_finger_joint2")]
 
     # here use pos of links instead of coms of links    
-    def get_link_positions(self):
-        self.link_position = []
-        for link in self.link_list:
-            # com_np = link.get_coms()
-            # com = list(com_np)
-            # self.link_position += com
-            link_pos = link.get_world_poses()[0]
-            # link_pos = torch.cat(link_pos)
-            self.link_position.append(link_pos.squeeze())
+    # def get_link_positions(self):
+    #     self.link_position = []
+    #     for link in self.link_list:
+    #         # com_np = link.get_coms()
+    #         # com = list(com_np)
+    #         # self.link_position += com
+    #         link_pos = link.get_world_poses()[0]
+    #         # link_pos = torch.cat(link_pos)
+    #         self.link_position.append(link_pos.squeeze())
 
-        self.link_position = torch.cat(self.link_position)
+    #     self.link_position = torch.cat(self.link_position)
 
+    #     return self.link_position
+    
+    def get_link_positions(self): # avoid loop
+        self.link_position = self.links.get_world_poses()[0]
         return self.link_position
     # @property
     # def gripper_indices(self):

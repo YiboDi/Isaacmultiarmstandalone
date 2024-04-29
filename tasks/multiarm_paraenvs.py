@@ -15,7 +15,7 @@ from omni.isaac.core.utils.torch.rotations import *
 from omni.isaac.cloner import Cloner
 import omni.kit
 from pxr import Usd, UsdGeom
-from omni.isaac.core.prims import XFormPrimView, GeometryPrimView, RigidPrimView
+from omni.isaac.core.prims import XFormPrimView, GeometryPrimView, RigidPrimView, RigidContactView
 
 from gym import spaces
 import numpy as np
@@ -78,7 +78,7 @@ class MultiarmTask(BaseTask):
 
         self.num_franka_dofs = 6
 
-        self._max_episode_length = 300
+        self._max_episode_length = 30
 
         self.dof_lower_limits = torch.tensor([-2 * pi, -2 * pi, -pi, -2 * pi, -2 * pi, -2 * pi], device=self._device)
         self.dof_upper_limits = torch.tensor([2 * pi, 2 * pi, pi, 2 * pi, 2 * pi, 2 * pi], device=self._device)
@@ -133,8 +133,8 @@ class MultiarmTask(BaseTask):
         # if self._sim_config.task_config["sim"].get("add_ground_plane", True):
         self._ground_plane_path = "/World/defaultGroundPlane"
         collision_filter_global_paths.append(self._ground_plane_path)
-        scene.add_default_ground_plane(prim_path=self._ground_plane_path)
-        prim_paths = self._cloner.generate_paths("/World/envs/env", self._num_envs)
+        scene.add_default_ground_plane(prim_path=self._ground_plane_path) # comsume lots of time
+        prim_paths = self._cloner.generate_paths("/World/envs/env", self._num_envs) 
         # position of all envs
         self._env_pos = self._cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=prim_paths, replicate_physics=replicate_physics) 
         self._env_pos = torch.tensor(np.array(self._env_pos), device=self._device, dtype=torch.float)
@@ -150,14 +150,24 @@ class MultiarmTask(BaseTask):
             # set franka1 in all envs as a UR5View
             franka = UR5MultiarmEnv(prim_paths_expr=self.default_base_env_path + "/.*/franka{}".format(i), name="franka{}_view".format(i),
                                 ) # create a View for all the robots in all envs
-            franka.ee = GeometryPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka{}/ee_link/ee".format(i), name="franka{}_view_ee".format(i))
+            # franka.ee = GeometryPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka{}/ee_link/ee".format(i), name="franka{}_view_ee".format(i))
             target = GeometryPrimView(prim_paths_expr=self.default_base_env_path + "/.*/target{}".format(i), name="franka{}_view_target".format(i))
             franka.base_link = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka{}/base_link".format(i), name="franka{}_view_base_link".format(i))
+            franka.links = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka{}/.*_link|tool0|world".format(i), name="franka{}_view_links".format(i))
+            # franka.link_for_contact = RigidContactView(prim_paths_expr=self.default_base_env_path + "/.*/franka{}/.*_link".format(i), name="franka{}_view_link_for_contact".format(i), 
+            # # track_contact_forces= True, prepare_contact_sensors=True,
+            # filter_paths_expr = [self.default_base_env_path + "/.*/franka.*/.*_link"]
+            # )
 
             scene.add(franka)
-            scene.add(franka.ee)
+            # scene.add(franka.ee)
             scene.add(target)
             scene.add(franka.base_link)
+            scene.add(franka.links)
+
+            # franka.link_for_contact.initialize()
+            # franka.link_for_contact.enable_rigid_body_physics()
+            # mass = franka.link_for_contact.get_inv_masses()
 
             # for link in franka.link_for_contact:
             #     scene.add(link)
@@ -172,8 +182,13 @@ class MultiarmTask(BaseTask):
             franka.set_world_poses(translations, orientations)
 
         # create a FrankaView for all robots under num_envs and num_agents
-        self.frankaview = UR5MultiarmEnv(prim_paths_expr=self.default_base_env_path + "/.*/franka\\d*", name="frankas_view")
-
+        self.frankaview = ArticulationView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*", name="frankas_view")
+        self.frankaview.base_link = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*/base_link", name="frankas_view_base_link")
+        self.frankaview.links = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*/.*_link|tool0|world", name="frankas_view_links")
+        self.frankaview.link_for_contact = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*/.*_link", name="frankas_view_link_for_contact")
+        self.frankaview.ee_link = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*/ee_link", name="frankas_view_ee_link")
+        self.targetview = GeometryPrimView(prim_paths_expr=self.default_base_env_path + "/.*/target.*", name="targets_view")
+        
         # set default camera viewport position and target
         self.set_initial_camera_params()
 
@@ -187,7 +202,7 @@ class MultiarmTask(BaseTask):
 
         for i in range(4):
             ur5 = UR5(prim_path = self.default_zero_env_path + '/franka{}'.format(i), usd_path=usd_path)
-            ee = VisualCylinder(prim_path=self.default_zero_env_path + "/franka{}/ee_link/ee".format(i), radius=0.02, height=0.1, name='UR5EE')
+            # ee = VisualCylinder(prim_path=self.default_zero_env_path + "/franka{}/ee_link/ee".format(i), radius=0.02, height=0.1, name='UR5EE')
 
     def get_target(self):
         for i in range(4):
@@ -293,28 +308,28 @@ class MultiarmTask(BaseTask):
                 self._franka_list[i].set_world_poses(positions = tran, orientations = orie) # set base link local pose
                 # self._franka_list[i].base_link.set_local_poses(translations = tran, orientations = orie)
                 # test
-                pos = self._franka_list[i].get_local_poses()[0]
-                pos_link =  self._franka_list[i].base_link.get_local_poses()[0]
-                world_pos = self._franka_list[i].get_world_poses()[0]
-                world_pos_link =  self._franka_list[i].base_link.get_world_poses()[0]
+                # pos = self._franka_list[i].get_local_poses()[0]
+                # pos_link =  self._franka_list[i].base_link.get_local_poses()[0]
+                # world_pos = self._franka_list[i].get_world_poses()[0]
+                # world_pos_link =  self._franka_list[i].base_link.get_world_poses()[0]
 
-                print('base_pos from config '+ str(tran))
-                print('base_pos from sim '+ str(pos))
-                print('world_base_pos from sim '+ str(world_pos))
-                print('pos of base_link from sim '+ str(pos_link))
-                print('world pos of base_link from sim '+ str(world_pos_link))
-                print()
+                # print('base_pos from config '+ str(tran))
+                # print('base_pos from sim '+ str(pos))
+                # print('world_base_pos from sim '+ str(world_pos))
+                # print('pos of base_link from sim '+ str(pos_link))
+                # print('world pos of base_link from sim '+ str(world_pos_link))
+                # print()
 
 
                 trans, orien = target_eff_pos[:,i,:], target_eff_ori[:,i,:]
                 self._target_list[i].set_world_poses(positions = trans, orientations = orien)
                 # test
-                pos = self._target_list[i].get_local_poses()[0]
-                world_pos = self._target_list[i].get_world_poses()[0]
-                print('target_pos from config '+ str(trans))
-                print('target_pos from sim '+ str(pos))
-                print('world_pos from sim '+ str(world_pos))
-                print()
+                # pos = self._target_list[i].get_local_poses()[0]
+                # world_pos = self._target_list[i].get_world_poses()[0]
+                # print('target_pos from config '+ str(trans))
+                # print('target_pos from sim '+ str(pos))
+                # print('world_pos from sim '+ str(world_pos))
+                # print()
 
                 # check local poses of robots and its config
                 # print(str(self._franka_list[i].base_link.get_local_poses()) + 'and the configurations:')
@@ -382,60 +397,110 @@ class MultiarmTask(BaseTask):
 
 
     def get_observation(self):
-        ob = [[] for _ in range(self.num_agents)]
+        # ob = [[] for _ in range(self.num_agents)]
         for i, agent in enumerate(self._franka_list[0:self.num_agents]):
             dof_pos = agent.get_joint_positions(clone=False).to(self._device)
 
-            eepos_pre = agent.ee.get_world_poses()
+            # eepos_pre = agent.ee.get_world_poses()
 
-            ee_pos, ee_rot = agent.ee_link.get_world_poses(clone=False)[0].to(self._device), agent.ee_link.get_world_poses(clone=False)[1].to(self.device)
-            agent.ee.set_world_poses(positions = ee_pos, orientations = ee_rot)
-            eelinkpos = agent.ee_link.get_world_poses()
-            eepos_post = agent.ee.get_world_poses()
+            self.ee_pos, self.ee_rot = agent.ee_link.get_world_poses(clone=False) # move to cuda
+            # # agent.ee.set_world_poses(positions = ee_pos, orientations = ee_rot)
+            # # eelinkpos = agent.ee_link.get_world_poses()
+            # # eepos_post = agent.ee.get_world_poses()
 
-            print('ee pos pre: {}'.format(eepos_pre))
-            print('ee pos post: {}'.format(eepos_post))
-            print('ee link pos: {}'.format(eelinkpos))
+            # # print('ee pos pre: {}'.format(eepos_pre))
+            # # print('ee pos post: {}'.format(eepos_post))
+            # # print('ee link pos: {}'.format(eelinkpos))
 
 
 
-            target_eff_pose = self._target_list[i].get_local_poses()
+            target_eff_pose = self._target_list[i].get_world_poses()
             target_eff_pose = torch.cat(target_eff_pose, dim=1).to(self._device)
+            self.target_eff_pose = target_eff_pose  
             target_eff_pose = torch.cat([target_eff_pose, target_eff_pose], dim=1) # observation contains historical frame of target_eff_pose
 
-            # link_position = agent.get_link_coms() 
-            link_position = agent.get_link_positions().to(self._device)
-            if self.progress_buf == 1:
-                # base_pose = agent.base_link.get_local_poses() # get the position of the base
-                base_pose = agent.get_local_poses()
+            # # link_position = agent.get_link_coms() 
+            # # link_position = agent.get_link_positions().to(self._device)
+            link_position = agent.links.get_world_poses()[0].to(self._device)
+            link_position = link_position.view(self._num_envs, 30)
+
+            if self.progress_buf == 0 or 1:
+                base_pose = agent.base_link.get_local_poses() # get the position of the base
+                base_pose = agent.get_world_poses()
                 base_pose = torch.cat(base_pose, dim=-1).squeeze().to(self._device)
             
-            if self.progress_buf == 1:
+            # if self.progress_buf == 1:
             # if self.ob == torch.zeros((self.num_agents, self._num_observation)): # if first step (no history yet)
-             self.ob[:, i, 0:6] = dof_pos # joint_position
-             self.ob[:, i, 6:12] = dof_pos 
-             self.ob[:, i, 12:15] = ee_pos # world pos, need to transpose to pos to env
-             self.ob[:, i, 15:19] = ee_rot
-             self.ob[:, i, 19:22] = ee_pos
-             self.ob[:, i, 22:26] = ee_rot
-             self.ob[:, i, 26:40] = target_eff_pose # 7*2 # local pos to the env
-             self.ob[:, i, 40:70] = link_position # should get world pos and transfer to env related pos
-             self.ob[:, i, 70:100] = link_position
-             self.ob[:, i, 100:107] = base_pose
+                self.ob[:, i, 0:6] = dof_pos # joint_position
+                self.ob[:, i, 6:12] = dof_pos 
+                self.ob[:, i, 12:15] = self.ee_pos # world pos, need to transpose to pos to env
+                self.ob[:, i, 15:19] = self.ee_rot
+                self.ob[:, i, 19:22] = self.ee_pos
+                self.ob[:, i, 22:26] = self.ee_rot
+                self.ob[:, i, 26:40] = target_eff_pose # 7*2 # local pos to the env
+                self.ob[:, i, 40:70] = link_position # should get world pos and transfer to env related pos
+                self.ob[:, i, 70:100] = link_position
+                self.ob[:, i, 100:107] = base_pose
 
             else:
-             self.ob[:, i, 0:6] = self.ob[:, i, 6:12]
-             self.ob[:, i, 6:12] = dof_pos
-             self.ob[:, i, 12:15] = self.ob[:, i, 19:22]
-             self.ob[:, i, 15:19] = self.ob[:, i, 22:26]
-             self.ob[:, i, 19:22] = ee_pos
-             self.ob[:, i, 22:26] = ee_rot
-             self.ob[:, i, 26:40] = target_eff_pose # 7*2
-             self.ob[:, i, 40:70] = self.ob[:, i, 70:100]
-             self.ob[:, i, 70:100] = link_position
+                self.ob[:, i, 0:6] = self.ob[:, i, 6:12]
+                self.ob[:, i, 6:12] = dof_pos
+                self.ob[:, i, 12:15] = self.ob[:, i, 19:22]
+                self.ob[:, i, 15:19] = self.ob[:, i, 22:26]
+                self.ob[:, i, 19:22] = self.ee_pos
+                self.ob[:, i, 22:26] = self.ee_rot
+                # self.ob[:, i, 26:40] = target_eff_pose # 7*2
+                self.ob[:, i, 40:70] = self.ob[:, i, 70:100]
+                self.ob[:, i, 70:100] = link_position
 
         return self.ob
 
+    def pre_observations(self): # give up
+        dof_pos = self.frankaview.get_joint_positions(clone=False)
+        dof_pos = dof_pos.to(self._device)
+        self.ee_pos, self.ee_rot = self.frankaview.ee_link.get_world_poses(clone=False)
+        self.ee_pos = self.ee_pos.view(self._num_envs, 4, 3)[:,:self.num_agents,:].to(self._device)
+        self.ee_rot = self.ee_rot.view(self._num_envs,4,4)[:,:self.num_agents,:].to(self._device)
+        link_position = self.frankaview.links.get_world_poses()[0].to(self._device)
+        link_position = link_position.view(self._num_envs, 4, 30)[:,:self.num_agents,:]
+
+        if self.progress_buf == 0 or 1:
+
+            base_pose = self.frankaview.get_world_poses()
+            base_pose = torch.cat(base_pose, dim=-1).squeeze().to(self._device)
+            base_pose = base_pose.view(self._num_envs, 4, 7)[:,:self.num_agents,:]
+
+            target_eff_pose = self.targetview.get_world_poses()
+            target_eff_pose = torch.cat(target_eff_pose, dim=-1).to(self._device)
+            target_eff_pose = target_eff_pose.view(self._num_envs, 4, 7)[:,:self.num_agents,:]
+            self.target_eff_pose = target_eff_pose
+            target_eff_pose = torch.cat([target_eff_pose, target_eff_pose], dim=-1) # observation contains historical frame of target_eff_pose
+
+            
+            self.ob[:, :, 0:6] = dof_pos # joint_position
+            self.ob[:, :, 6:12] = dof_pos 
+            self.ob[:, :, 12:15] = self.ee_pos # world pos, need to transpose to pos to env
+            self.ob[:, :, 15:19] = self.ee_rot
+            self.ob[:, :, 19:22] = self.ee_pos
+            self.ob[:, :, 22:26] = self.ee_rot
+            self.ob[:, :, 26:40] = target_eff_pose # 7*2 # local pos to the env
+            self.ob[:, :, 40:70] = link_position # should get world pos and transfer to env related pos
+            self.ob[:, :, 70:100] = link_position
+            self.ob[:, :, 100:107] = base_pose
+
+        else:
+            self.ob[:, :, 0:6] = self.ob[:, :, 6:12]
+            self.ob[:, :, 6:12] = dof_pos
+            self.ob[:, :, 12:15] = self.ob[:, :, 19:22]
+            self.ob[:, :, 15:19] = self.ob[:, :, 22:26]
+            self.ob[:, :, 19:22] = self.ee_pos
+            self.ob[:, :, 22:26] = self.ee_rot
+            # self.ob[:, :, 26:40] = target_eff_pose # 7*2
+            self.ob[:, :, 40:70] = self.ob[:, :, 70:100]
+            self.ob[:, :, 70:100] = link_position
+
+        return self.ob
+    
     def get_observations(self):
         """
         shape of self.obs is (self._num_envs, self.num_agents, self.num_agents, self._num_observation)
@@ -443,7 +508,8 @@ class MultiarmTask(BaseTask):
         obs_start = time.time()
         # firstly sort the self._franka_list by base distance, furthest to closest, for each env
         ob_start = time.time()
-        self.get_observation()
+        self.get_observation() # get dof_pos 
+        # self.pre_observations() # get other ob, give up after testing
         ob_end = time.time()
         print('get_observation time:', ob_end - ob_start)
 
@@ -463,27 +529,38 @@ class MultiarmTask(BaseTask):
 
 
 
-    def check_collision(self):
+    # def check_collision(self):
 
 
-        for i in range(self.num_agents):
-            for j, link in enumerate(self._franka_list[i].link_for_contact):
-                if link.get_net_contact_forces() is not None:
-                    contact_force = torch.norm(link.get_net_contact_forces(), dim=1).to(self._device)
-                    self.collision[:, i] = torch.where(contact_force > 0.3, 1, self.collision[:, i])
-                    """
-                    set self.is_terminals to be 1 if collision happens in an env
-                    """
-                    self.is_terminals = torch.any(self.collision, dim=1)
-                    # self.is_terminals = self.collision
+    #     for i in range(self.num_agents):
+    #         # for j, link in enumerate(self._franka_list[i].link_for_contact):
+    #         if self._franka_list[i].link_for_contact.get_net_contact_forces() is not None:
+    #             contact_force = torch.norm(self._franka_list[i].link_for_contact.get_net_contact_forces(), dim=1).to(self._device)
+    #             self.collision[:, i] = torch.where(contact_force > 0.3, 1, self.collision[:, i])
+    #             """
+    #             set self.is_terminals to be 1 if collision happens in an env
+    #             """
+    #             self.is_terminals = torch.any(self.collision, dim=1)
+    #             # self.is_terminals = self.collision
 
-                    # if contact:
-                    #     print('collision happens in env:' + str(i) + ' with link at path:' + str(link.prims)) # or link.prims
-                    #     self.collision[i,j] = 1  
-                    #     # set the is_terminal to be 1
-                    #     self.is_terminals[i, j] = 1
+    #             # if contact:
+    #             #     print('collision happens in env:' + str(i) + ' with link at path:' + str(link.prims)) # or link.prims
+    #             #     self.collision[i,j] = 1  
+    #             #     # set the is_terminal to be 1
+    #             #     self.is_terminals[i, j] = 1
                 
-        return self.collision
+    #     return self.collision
+
+#! TODO
+    # def check_collision(self):
+    #     if self.frankaview.link_for_contact.get_net_contact_forces() is not None:
+    #         contact_force = torch.norm(self.frankaview.link_for_contact.get_net_contact_forces(), dim=-1).to(self._device)
+    #         contact_force = contact_force.view(self._num_envs, self.num_agents, self.num_agents)
+    #         self.collision = torch.where(contact_force > 0.3, 1, self.collision)
+    #         """
+    #         set self.is_terminals to be 1 if collision happens in an env
+    #         """
+    #         self.is_
 
 
 
@@ -500,16 +577,16 @@ class MultiarmTask(BaseTask):
     
     def indiv_reach_targets(self):
         indiv_reach_targets = torch.zeros((self._num_envs, self.num_agents), device = self._device)
-        for i in range(self.num_agents):
+        # for i in range(self.num_agents):
             # pos_delta = np.linalg.norm(self._franka_list[i].ee_link.get_world_poses()[0] - self._target_list[i].get_world_poses()[0], axis=1, keepdims=True)
             # ori_delta = np.linalg.norm(self._franka_list[i].ee_link.get_world_poses()[1] - self._target_list[i].get_world_poses()[1], axis=1, keepdims=True)
-            ee_pos = self._franka_list[i].ee_link.get_world_poses()[0].to(self._device)
-            target_pos = self._target_list[i].get_world_poses()[0].to(self._device)
-            pos_delta = torch.norm(ee_pos - target_pos, dim=1, keepdim=True).squeeze(dim=-1)
+        # ee_pos = self.frankaview.ee_link.get_world_poses()[0].to(self._device).view(self._num_envs, 4, 3)[:,:self.num_agents,:]
+        # target_pos = self.targetview.get_world_poses()[0].to(self._device).view(self._num_envs, 4, 3)[:,:self.num_agents,:]
+        self.pos_delta = torch.norm(self.ob[:, :, 19:22] - self.ob[:, :, 26:29], dim=-1, keepdim=True).squeeze(dim=-1)
 
-            ee_ori = self._franka_list[i].ee_link.get_world_poses()[1].to(self._device)
-            target_ori = self._target_list[i].get_world_poses()[1].to(self._device)
-            ori_delta = torch.norm(ee_ori - target_ori, dim=1, keepdim=True).squeeze(dim=-1)
+        # ee_ori = self.frankaview.ee_link.get_world_poses()[1].to(self._device).view(self._num_envs, 4, 4)[:,:self.num_agents,:]
+        # target_ori = self.targetview.get_world_poses()[1].to(self._device).view(self._num_envs, 4, 4)[:,:self.num_agents,:]
+        self.ori_delta = torch.norm(self.ob[:, :, 22:26] - self.ob[:, :, 29:33], dim=-1, keepdim=True).squeeze(dim=-1)
 
 
 
@@ -521,7 +598,7 @@ class MultiarmTask(BaseTask):
         #     return 0
             # pos_delta = torch.from_numpy(pos_delta).to(self._device).squeeze(dim=-1)
             # ori_delta = torch.from_numpy(ori_delta).to(self._device).squeeze(dim=-1)
-            indiv_reach_targets[:,i] = torch.where((pos_delta < self.position_tolerance) & (ori_delta < self.orientation_tolerance), 1, 0)
+        indiv_reach_targets[:,:] = torch.where((self.pos_delta < self.position_tolerance) & (self.ori_delta < self.orientation_tolerance), 1, 0)
 
         return indiv_reach_targets
 
@@ -533,7 +610,7 @@ class MultiarmTask(BaseTask):
         
         collision_penalties = torch.zeros((self._num_envs, self.num_agents), device = self._device)
         if self.progress_buf > 1:
-            self.check_collision()
+            # self.check_collision()
             collision_penalties = torch.where(self.collision == 1, self.collision_penalty, 0)
             # set the is_terminal of env with collision to 1
             self.is_terminals = torch.where(self.collision.any(dim=1) == 1, 1, self.is_terminals)
@@ -581,23 +658,23 @@ class MultiarmTask(BaseTask):
 
         pos_rewards = torch.zeros((self._num_envs, self.num_agents), device=self._device)
         ori_rewards = torch.zeros((self._num_envs, self.num_agents), device=self._device)
-        for i, agent in enumerate(self._franka_list[0:self.num_agents]):
+        # for i, agent in enumerate(self._franka_list[0:self.num_agents]):
             # Get world poses for the end-effector link and the target, ensuring they are PyTorch tensors
-            agent_poses = agent.ee_link.get_world_poses()[0].to(self._device)
-            target_poses = self._target_list[i].get_world_poses()[0].to(self._device)
+        # agent_poses = self.frankaview.ee_link.get_world_poses()[0].to(self._device).view(self._num_envs, 4, 3)[:,:self.num_agents,:]
+        # target_poses = self.targetview.get_world_poses()[0].to(self._device).view(self._num_envs, 4, 3)[:,:self.num_agents,:]
 
-            agent_oris = agent.ee_link.get_world_poses()[1].to(self._device)
-            target_oris = self._target_list[i].get_world_poses()[1].to(self._device)
+        # agent_oris = self.frankaview.ee_link.get_world_poses()[1].to(self._device).view(self._num_envs, 4, 4)[:,:self.num_agents,:]
+        # target_oris = self.targetview.get_world_poses()[1].to(self._device).view(self._num_envs, 4, 4)[:,:self.num_agents,:]
 
-            # Calculate positional and orientation deltas
-            pos_delta = torch.norm(agent_poses - target_poses, dim=1)
-            ori_delta = torch.norm(agent_oris - target_oris, dim=1)
+        # Calculate positional and orientation deltas
+        # pos_delta = torch.norm(self.ee_pos - self.target_eff_pose[:,:,:3], dim=-1)
+        # ori_delta = torch.norm(self.ee_rot - self.target_eff_pose[:,:,4:], dim=-1)
 
-            # Smooth, continuous reward for getting closer to the target position
-            pos_rewards[:, i] = torch.exp(-pos_delta / self.position_tolerance)
+        # Smooth, continuous reward for getting closer to the target position
+        pos_rewards[:, :] = torch.exp(-self.pos_delta / self.position_tolerance)
 
-            # Smooth, continuous reward for aligning orientation to the target
-            ori_rewards[:, i] = torch.exp(-ori_delta / self.orientation_tolerance)
+        # Smooth, continuous reward for aligning orientation to the target
+        ori_rewards[:, :] = torch.exp(-self.ori_delta / self.orientation_tolerance)
 
 
         
