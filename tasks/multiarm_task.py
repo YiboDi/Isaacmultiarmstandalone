@@ -189,13 +189,16 @@ class MultiarmTask(BaseTask):
             elif i >= self.num_agents:
                 franka = UR5View(prim_paths_expr="/World/Franka/franka{}".format(i), name="franka{}_view".format(i),
                                 )
+                
+            # franka.links_contact
 
             scene.add(franka)
             scene.add(franka.ee)
             scene.add(franka.target)
+            scene.add(franka.links_contact)
 
-            for link in franka.link_for_contact:
-                scene.add(link)
+            # for link in franka.link_for_contact:
+            #     scene.add(link)
 
             self._franka_list.append(franka)
         scene.add_default_ground_plane()
@@ -574,15 +577,16 @@ class MultiarmTask(BaseTask):
         return 0 
     
     def check_collision(self):
-        for i, agent in enumerate(self._franka_list):
-            if agent.links_contact.get_net_contact_forces() is None:
+        # for i, agent in enumerate(self._franka_list):
+        for i in range(self.num_agents):
+            if self._franka_list[i].links_contact.get_net_contact_forces() is None:
                 # raise ValueError('contact forces are none at link:' + str(agent.links_contact.prims))
                 continue
             else:
-                force = torch.norm(agent.links_contact.get_net_contact_forces(), dim=-1)
+                force = torch.norm(self._franka_list[i].links_contact.get_net_contact_forces(), dim=-1)
                 contact = torch.where(force > 1.0, 1, 0)
                 if contact.any() == 1:
-                    print('collision happens with link at path:' + str(agent.links_contact.prims)) # or link.prims
+                    print('collision happens with link at path:' + str(self._franka_list[i].links_contact.prims)) # or link.prims
                     # set the is_terminal to be 1
                     self.is_terminals[i] = 1
                     return 1

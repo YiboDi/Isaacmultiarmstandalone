@@ -38,7 +38,7 @@ class UR5View(ArticulationView):
         self.world = RigidPrimView(prim_paths_expr = prim_paths_expr + "/world")
 
         self.links = RigidPrimView(prim_paths_expr = prim_paths_expr + "/.*link|tool0|world")
-        self.links_contact = RigidPrimView(prim_paths_expr = prim_paths_expr + "/.*link", track_contact_forces= True, prepare_contact_sensors=True,)
+        self.links_contact = RigidPrimView(prim_paths_expr = prim_paths_expr + "/.*link", track_contact_forces= True, prepare_contact_sensors=True, name = name+'links_contact')
 
         self.link_list = [self.base_link,
                           self.shoulder_link,
