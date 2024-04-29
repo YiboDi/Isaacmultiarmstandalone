@@ -1,11 +1,11 @@
 import sys 
 import time
 
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/dataset')
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/envs')
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/tasks')
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/algorithms')
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/networks')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/dataset')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/envs')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/tasks')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/algorithms')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/networks')
 import gym
 from vec_env_base_custom import VecEnvBase
 import torch
@@ -35,7 +35,7 @@ from multiarm_with_supervision import MultiarmSupervision
 task = MultiarmSupervision(name="MultiarmSupervision")
 env.set_task(task, backend = 'torch')
 
-file_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/config/default.json'
+file_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/config/default.json'
 # Load config JSON file
 with open(file_path, 'r') as file:
     config = json.load(file)
@@ -46,11 +46,11 @@ network = create_lstm(training_config=training_config)
 # modify for each experiment
 experiment_name = '0423testtimeconsumption'
 
-experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalonedata/experiments/' + experiment_name
+experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRLdata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            # load_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalonedata/experiments/0306continue0305/checkpoints/ckpt_sac_lstm_01278'
+            # load_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRLdata/experiments/0306continue0305/checkpoints/ckpt_sac_lstm_01278'
             )
 writer = SummaryWriter(log_dir=log_dir)
 

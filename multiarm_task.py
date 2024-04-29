@@ -28,8 +28,8 @@ import torch
 import math
 
 import sys 
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone')
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/robots')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL')
+sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/robots')
 from taskloader import TaskLoader
 from utils import load_config
 
@@ -147,7 +147,7 @@ class MultiarmTask(BaseTask):
 
         self._franka_list=[]
 
-        # usd_path = "/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/assets/ur5/ur5.usd"
+        # usd_path = "/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/assets/ur5/ur5.usd"
 
         for i in range(4):
 
@@ -190,7 +190,7 @@ class MultiarmTask(BaseTask):
 
         # assets_root_path = get_assets_root_path()
         # usd_path = assets_root_path + "/Isaac/Robots/Franka/franka.usd"
-        usd_path = "/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/assets/ur5/ur5.usd"
+        usd_path = "/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/Di_custom/multiarmRL/assets/ur5/ur5.usd"
 
         for i in range(4):
             if i < self.num_agents:
