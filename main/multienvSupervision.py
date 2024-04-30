@@ -91,7 +91,8 @@ for episode in range(num_episodes):
 
         # shape of actions is (batch size, 6)
         # dispatch the batch size back to (num_envs, num_robots)
-        actions = actions.reshape(env._task._num_envs, env._task.num_agents, *actions.shape[1:])
+        # actions = actions.reshape(env._task._num_envs, env._task.num_agents, *actions.shape[1:])
+        actions = actions.reshape(env._task._num_envs, env._task.num_agents, 6)
 
 
         # with supervision mode, take an action based on expert_waypoints

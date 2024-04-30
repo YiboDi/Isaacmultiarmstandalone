@@ -51,7 +51,7 @@ class MultiarmTask(BaseTask):
         self.config = load_config(path='/home/tp2/papers/decentralized-multiarm/configs/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
-        self._num_envs = 128
+        self._num_envs = 2
         self._env_spacing = 0
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
@@ -78,7 +78,7 @@ class MultiarmTask(BaseTask):
 
         self.num_franka_dofs = 6
 
-        self._max_episode_length = 30
+        self._max_episode_length = 300
 
         self.dof_lower_limits = torch.tensor([-2 * pi, -2 * pi, -pi, -2 * pi, -2 * pi, -2 * pi], device=self._device)
         self.dof_upper_limits = torch.tensor([2 * pi, 2 * pi, pi, 2 * pi, 2 * pi, 2 * pi], device=self._device)
@@ -185,7 +185,7 @@ class MultiarmTask(BaseTask):
         self.frankaview = ArticulationView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*", name="frankas_view")
         self.frankaview.base_link = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*/base_link", name="frankas_view_base_link")
         self.frankaview.links = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*/.*_link|tool0|world", name="frankas_view_links")
-        self.frankaview.link_for_contact = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*/.*_link", name="frankas_view_link_for_contact")
+        self.frankaview.link_for_contact = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*/.*_link", name="frankas_view_link_for_contact", track_contact_forces= True)
         self.frankaview.ee_link = RigidPrimView(prim_paths_expr=self.default_base_env_path + "/.*/franka.*/ee_link", name="frankas_view_ee_link")
         self.targetview = GeometryPrimView(prim_paths_expr=self.default_base_env_path + "/.*/target.*", name="targets_view")
 
@@ -559,15 +559,17 @@ class MultiarmTask(BaseTask):
     #     return self.collision
 
 #! TODO
-    # def check_collision(self):
-    #     if self.frankaview.link_for_contact.get_net_contact_forces() is not None:
-    #         contact_force = torch.norm(self.frankaview.link_for_contact.get_net_contact_forces(), dim=-1).to(self._device)
-    #         contact_force = contact_force.view(self._num_envs, self.num_agents, self.num_agents)
-    #         self.collision = torch.where(contact_force > 0.3, 1, self.collision)
-    #         """
-    #         set self.is_terminals to be 1 if collision happens in an env
-    #         """
-    #         self.is_
+    def check_collision(self):
+        # if self.frankaview.link_for_contact.get_net_contact_forces() is not None:
+        contact_force = self.frankaview.link_for_contact.get_net_contact_forces()
+        contact_force = torch.norm(contact_force, dim=-1).to(self._device)
+        contact_force = contact_force.view(self._num_envs, 4, 8)[:, :self.num_agents, :]
+        self.collision = torch.where(torch.any(contact_force, dim = -1) > 0.3, 1, 0) # check if any link of robot is contacted
+        # print('collision happens with link at path:' + str(self.frankaview.link_for_contact.prims))
+        """
+        set self.is_terminals to be 1 if collision happens in an env, in calculate_metrics()
+        """
+        # self.is_terminals = torch.where(self.collision == 1, 1, self.is_terminals)
 
 
 
@@ -619,7 +621,7 @@ class MultiarmTask(BaseTask):
         
         collision_penalties = torch.zeros((self._num_envs, self.num_agents), device = self._device)
         if self.progress_buf > 1:
-            # self.check_collision()
+            self.check_collision()
             collision_penalties = torch.where(self.collision == 1, self.collision_penalty, 0)
             # set the is_terminal of env with collision to 1
             self.is_terminals = torch.where(self.collision.any(dim=1) == 1, 1, self.is_terminals)
@@ -722,7 +724,7 @@ class MultiarmTask(BaseTask):
             # print('end episode because of all envs success or collision')
             if torch.all(self.success == 1):
                 print('end episode because of all envs success')
-            elif torch.all(self.collision == 1):
+            elif torch.all(torch.any(self.collision == 1, dim=-1)):
                 print('end episode because of all envs collision')
             
 
