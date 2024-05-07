@@ -201,82 +201,32 @@ class expertmultiEnv(VecEnvBase):
             max_size = expert_waypoints.shape[1]
             self.expert_waypoints = self.expert_waypoints.view(self._task._num_envs, max_size, self._task.num_agents, 6) # shape: [num_envs, max_size, num_agents*6]
         # Initialize a tensor to store current joint positions from all parallel Isaac sim environments
-        # curr_js = torch.empty(len(self._task.current_tasks), self._task.num_agents * 6) # curr_js shape: [num_envs, num_agents*6]
-        # for task_idx, task in enumerate(self._task.current_tasks):
-        # for i, agent in enumerate(self._task._franka_list[0:self._task.num_agents]):
-        #     # in multienvs, get_joint_positions will get the position of agents in all envs
-        #     dof = agent.get_joint_positions()
-        #     curr_js[:, i * 6:(i + 1) * 6] = torch.tensor(dof) # shape of curr_js is [num_envs, num_agents*6]
         curr_js = self._task.dof_pos # [num_envs, num_agents, 6]
-        # Process each trajectory in the batch
-        # actions_batch = torch.empty_like([self._task._num_envs, self._task.num_agents, 6])
-        # actions_batch = torch.zeros(self._task._num_envs, self._task.num_agents, 6)
-        # for idx, (curr_j, expert_waypoints) in enumerate(zip(curr_js, expert_waypoints_batch)):
-        #     # Find the nearest waypoint to the current position for each trajectory
-        #     # shape of expert_waypoints is [num_agents, num_steps]
-        #     # distances = torch.norm(expert_waypoints - curr_j.unsqueeze(0).repeat(expert_waypoints.shape[0], 1), dim=1)
-        #     distances = torch.norm(expert_waypoints - curr_j, dim=1)
-        #     next_wp_idx = torch.argmin(distances)
-
-        #     # Ensure the next waypoint is not too close to the current position, and ensure going forwards?
-        #     while next_wp_idx < len(expert_waypoints) - 1 and torch.all(torch.abs(curr_j - expert_waypoints[next_wp_idx]) < 0.01):
-        #         next_wp_idx += 1
-
-        #     # Initialize target waypoint index
-        #     target_wp_idx = next_wp_idx
-
-        #     # Calculate direction to the next waypoint
-        #     next_dir_j = expert_waypoints[next_wp_idx] - curr_j
-
-        #     # Find a target waypoint that is within action and joint tolerance limits
-        #     while True:
-        #         target_j = expert_waypoints[target_wp_idx]
-        #         target_dir_j = target_j - curr_j
-
-        #         # if torch.all(torch.abs(target_dir_j) < self.max_action) and torch.dot(next_dir_j, target_dir_j) / (torch.norm(next_dir_j) * torch.norm(target_dir_j)) > torch.cos(torch.tensor(self.joint_tolerance)):
-        #         if target_wp_idx < len(expert_waypoints) - 1 and all([delta_j < self.max_action for delta_j in abs(target_dir_j)])\
-        #             and angle(next_dir_j, target_dir_j) < self.joint_tolerance:
-        #             target_wp_idx += 1
-        #         else:
-        #             break
-
-        #     # Calculate actions based on the selected target waypoint
-        #     actions = (expert_waypoints[target_wp_idx]-curr_j).reshape((self._task.num_agents, 6))
-        #     actions_batch[idx] = actions
-        curr_js = curr_js.unsqueeze(1) # [num_envs, 1, num_agents, 6]
-        distances = torch.norm(self.expert_waypoints - curr_js, dim=-1) # [num_envs, max_size, num_agents]
+        # curr_js = curr_js.unsqueeze(1) # [num_envs, 1, num_agents, 6]
+        distances = torch.norm(self.expert_waypoints - curr_js.unsqueeze(1), dim=-1) # [num_envs, max_size, num_agents], unsqueeze for broadcasting
         distances = torch.sum(distances, dim=-1) # [num_envs, max_size]
         next_wp_idx = torch.argmin(distances, dim=1)  # [num_envs]
-        # one step forward if not reaching the end of the trajectory
-        # if next_wp_idx < self.expert_waypoints.shape[1]-1:
-        #     next_wp_idx += 1
+
         next_wp_idx = torch.where(next_wp_idx >= self.expert_waypoints.shape[1]-1, next_wp_idx, next_wp_idx+1)
 
 
-        target_wp_idx = next_wp_idx
-        # target_j = self.expert_waypoints[:,target_wp_idx,:,:] # [num_envs, num_agents, 6]
+        target_wp_idx = next_wp_idx.clone()
 
         while True:
-            # assert torch.all(target_wp_idx) < self.expert_waypoints.shape[1], "Index out of bounds!"
-
-            # target_j = self.expert_waypoints[:,target_wp_idx,:,:] # [num_envs, num_agents, 6]
-            target_wp_idx_reshaped = target_wp_idx.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand(self.expert_waypoints.shape[0],1,self.expert_waypoints.shape[2], self.expert_waypoints.shape[3]) # [num_envs, max_size, num_agents, 6]
+            target_wp_idx_reshaped = target_wp_idx.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand(-1,1,self.expert_waypoints.shape[2], self.expert_waypoints.shape[3]) # [num_envs, max_size, num_agents, 6]
             target_j = torch.gather(self.expert_waypoints, 1, target_wp_idx_reshaped) # [num_envs, num_agents, 6]
-            target_j = target_j.squeeze()
-            # if torch.all(target_wp_idx) < self.expert_waypoints.shape[1] - 1 and torch.all(torch.abs(target_j - curr_js) < self.max_action):
-            #     target_wp_idx += 1
-            # else:
-            #     break
+            target_j = target_j.squeeze(1)
+
             cond1 = target_wp_idx < self.expert_waypoints.shape[1] - 1
-            cond2 = torch.all(torch.abs(target_j - curr_js) < self.max_action, dim=-1)
+            cond2 = torch.all(torch.abs(target_j - curr_js) < self.max_action, dim=-1).squeeze()
+            # cond2 = torch.all(cond2, dim=-1).squeeze()
             cond2 = torch.all(cond2, dim=-1)
-            # cond2 = torch.all(cond2, dim=-1)
             cond = cond1 & cond2
             if not cond.any():
                 break
             target_wp_idx = torch.where(cond, target_wp_idx+1, target_wp_idx)
 
-        actions = target_j.squeeze(0) #[num_envs, num_agents, 6]
+        actions = target_j #[num_envs, num_agents, 6]
 
 
         return actions.clone()

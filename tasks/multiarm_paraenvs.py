@@ -51,7 +51,7 @@ class MultiarmTask(BaseTask):
         self.config = load_config(path='/home/tp2/papers/decentralized-multiarm/configs/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
-        self._num_envs = 1
+        self._num_envs = 64
         self._env_spacing = 0
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
@@ -78,7 +78,7 @@ class MultiarmTask(BaseTask):
 
         self.num_franka_dofs = 6
 
-        self._max_episode_length = 300
+        self._max_episode_length = 200
 
         self.dof_lower_limits = torch.tensor([-2 * pi, -2 * pi, -pi, -2 * pi, -2 * pi, -2 * pi], device=self._device)
         self.dof_upper_limits = torch.tensor([2 * pi, 2 * pi, pi, 2 * pi, 2 * pi, 2 * pi], device=self._device)
