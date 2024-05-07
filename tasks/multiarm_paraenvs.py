@@ -51,7 +51,7 @@ class MultiarmTask(BaseTask):
         self.config = load_config(path='/home/tp2/papers/decentralized-multiarm/configs/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
-        self._num_envs = 2
+        self._num_envs = 1
         self._env_spacing = 0
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
@@ -68,13 +68,13 @@ class MultiarmTask(BaseTask):
         self._device = "cuda"
 
         self.collision_penalty = -1
-        self.delta_pos_reward = 0
-        self.delta_ori_reward = 0
+        # self.delta_pos_reward = 0
+        # self.delta_ori_reward = 0
         self.activation_radius = 100
         self.indiv_reach_target_reward = 1
         self.coorp_reach_target_reward = 5
-        self.position_tolerance = 0.04
-        self.orientation_tolerance = 0.1
+        self.position_tolerance = 0.15 # modify based on the experiment result
+        self.orientation_tolerance = 0.2
 
         self.num_franka_dofs = 6
 
@@ -254,6 +254,7 @@ class MultiarmTask(BaseTask):
         #updata tasks list
         self.update_tasks()
         self.num_agents=len(self.current_tasks[0].start_config)
+        
         self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_agents, self._num_action))
         self.observation_space = spaces.Box(low=-np.Inf, high=np.Inf, shape=(self.num_agents, self._num_observation))
 
@@ -374,11 +375,12 @@ class MultiarmTask(BaseTask):
 
         # scaled_action should be action in (-1,+1) times max_velocity divided by simulation frequency
         # the following fomular should be thought over, the relationship with self.dt
-        scaled_action = actions * self.max_velocity * self.dt * 3 # last scaler is a custom scaler to accelerate the training
+        # scaled_action = actions * self.max_velocity * self.dt * 3 # last scaler is a custom scaler to accelerate the training
         # targets = self.franka_dof_targets + self.dt * self.actions * self.action_scale # shape of self.num_agents*self.num_action, adapt self.franka_dof_targets based on its last value, making it changing smoothly
         # targets = self.franka_dof_targets + scaled_action 
         # try directly set the scaled action to robot instead of accumulation
-        targets = scaled_action
+        # targets = scaled_action
+        targets = actions
         self.franka_dof_targets[:] = tensor_clamp(targets, self.dof_lower_limits, self.dof_upper_limits)
         # not certain about the indices
         # for i in range(self._num_envs):
@@ -465,6 +467,7 @@ class MultiarmTask(BaseTask):
     def pre_observations(self): 
         dof_pos = self.frankaview.get_joint_positions(clone=False)
         dof_pos = dof_pos.view(self._num_envs, 4, 6)[:,:self.num_agents,:].to(self._device)
+        self.dof_pos = dof_pos
         self.ee_pos, self.ee_rot = self.frankaview.ee_link.get_world_poses(clone=False)
         self.ee_pos = self.ee_pos.view(self._num_envs, 4, 3)[:,:self.num_agents,:].to(self._device)
         self.ee_rot = self.ee_rot.view(self._num_envs,4,4)[:,:self.num_agents,:].to(self._device)
@@ -597,8 +600,8 @@ class MultiarmTask(BaseTask):
         # ee_ori = self.frankaview.ee_link.get_world_poses()[1].to(self._device).view(self._num_envs, 4, 4)[:,:self.num_agents,:]
         # target_ori = self.targetview.get_world_poses()[1].to(self._device).view(self._num_envs, 4, 4)[:,:self.num_agents,:]
         # self.ori_delta = torch.norm(self.ob[:, :, 22:26] - self.ob[:, :, 29:33], dim=-1, keepdim=True).squeeze(dim=-1)
-        self.ori_delta = torch.norm(self.ee_rot - self.target_eff_pose[:,:,3:], dim=-1, keepdim=True).squeeze(dim=-1)
-
+        # self.ori_delta = torch.norm(self.ee_rot - self.target_eff_pose[:,:,3:], dim=-1, keepdim=True).squeeze(dim=-1)
+        self.ori_delta = self.quaternion_angle_difference(self.ee_rot, self.target_eff_pose[:,:,3:])
 
 
         # if pos_delta < self.position_tolerance and ori_delta < self.orientation_tolerance:
@@ -612,6 +615,13 @@ class MultiarmTask(BaseTask):
         indiv_reach_targets[:,:] = torch.where((self.pos_delta < self.position_tolerance) & (self.ori_delta < self.orientation_tolerance), 1, 0)
 
         return indiv_reach_targets
+    
+    def quaternion_angle_difference(self, q1, q2):
+        q1 = q1 / torch.norm(q1, dim=-1, keepdim=True)
+        q2 = q2 / torch.norm(q2, dim=-1, keepdim=True)
+        dot_product = torch.abs(torch.sum(q1 * q2, dim=-1))
+        angle = 2 * torch.acos(torch.clamp(dot_product, -1.0, 1.0))
+        return angle
 
 
     def calculate_metrics(self) -> None: # calculate the rewards in each env.step()
