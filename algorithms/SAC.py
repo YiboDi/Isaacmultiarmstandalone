@@ -43,15 +43,19 @@ class SAC():
         # self.writer = SummaryWriter(log_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/logs/Training')
         self.writer = SummaryWriter(log_dir = self.log_dir)
         self.policy_lr = 0.0005
-        self.q_lr = 0.001
+        # self.q_lr = 0.001
+        self.q_lr = 0.0003
 
         # self.policy_opt = optim.Adam(self.policy_net.parameters(), lr=self.policy_lr)
         # self.q1_optimizer = optim.Adam(self.q1_net.parameters(), lr=self.q_lr)
         # self.q2_optimizer = optim.Adam(self.q2_net.parameters(), lr=self.q_lr)
 
-        # capacity = 500000 #(10^4 to 10^6 )
-        # self.replay_buffer_capacity = 100000
-        self.replay_buffer_capacity = 4096
+        self.warmup_steps = 100000
+        self.minimum_replay_buffer_freshness = 0.5 # 0.7
+        self.replay_buffer_capacity = 100000 # Common defaults are 1,000,000 for the replay buffer size
+        self.batch_size = 128 #(Typically 64-256 for SAC algorithms), 4096 from default setting
+        self.num_updates_per_train = 800 #train_epoch() for 10 times each train()    
+
         data_dic = {'observations':[],
                     'actions':[],
                     'rewards':[],
@@ -59,32 +63,22 @@ class SAC():
                     'is_terminal':[]}
         self.replay_buffer = ReplayBufferDataset(data=data_dic, device=self.device, capacity=self.replay_buffer_capacity)
         # self.train_frequency = 100000
-
-        # modify batch size for test
-        # self.batch_size = 256
-        self.batch_size = 4096 #(Typically 64-256 for SAC algorithms), 4096 from default setting
-        # self.batch_size = 3
-
-        self.num_updates_per_train = 30 #train_epoch() for 10 times each train()
         # self.tau = 0.05
-        self.tau = 0.001
+        # self.tau = 0.001
+        self.tau = 0.01
 
         self.last_train_size = 0
-        # learn at start for test
-        # self.warmup_steps = 10
-        # self.warmup_steps = 20000
-        self.warmup_steps = 4096
-        # self.minimum_replay_buffer_freshness = 0.7
-        self.minimum_replay_buffer_freshness = 0.5
+
         self.discount = 0.99
         self.alpha = 0.001
         # self.memory_cluster_capacity = 50000
         self.reparametrize = True
         self.action_scaling = 1
         self.reward_scale = 1
+        # self.reward_scale = 0.5
         self.Q_criterion = torch.nn.MSELoss()
         # self.save_interval = 500
-        self.save_interval = 100
+        self.save_interval = 800
         # self.save_interval = 10
 
         self.deterministic = True
@@ -177,7 +171,7 @@ class SAC():
         #     normal = Normal(mean, std) # distribution
         #     action = normal.sample()
         
-        if self.replay_buffer is not None and len(self.replay_buffer) > self.warmup_steps and self.replay_buffer.freshness > self.minimum_replay_buffer_freshness: 
+        if self.replay_buffer is not None and len(self.replay_buffer) >= self.warmup_steps and self.replay_buffer.freshness > self.minimum_replay_buffer_freshness: 
             self.train()
             self.last_train_size = len(self.replay_buffer)
             # if self.last_train_size == self.replay_buffer_capacity:
@@ -210,6 +204,7 @@ class SAC():
                     num_workers=0)
         train_loader_it = iter(self.train_loader)
         for i in range(self.num_updates_per_train): # 10 times train_batch per train
+            print(str(i))
             batch = next(train_loader_it, None)
             if batch is None:
                 train_loader_it = iter(self.train_loader)
@@ -324,13 +319,13 @@ class SAC():
             #                 self.action_scaling)
             # q2_pred = self.Q2(obs=critic_obs, actions=actions *
             #                 self.action_scaling)
-
-        target_q_values = torch.min(
-            self.Q1_target(critic_next_obs, new_next_obs_action *
-                        self.action_scaling),
-            self.Q2_target(critic_next_obs, new_next_obs_action *
-                        self.action_scaling)) \
-            - (self.alpha * next_obs_action_logprobs)
+        with torch.no_grad():
+            target_q_values = torch.min(
+                self.Q1_target(critic_next_obs, new_next_obs_action *
+                            self.action_scaling),
+                self.Q2_target(critic_next_obs, new_next_obs_action *
+                            self.action_scaling)) \
+                - (self.alpha * next_obs_action_logprobs)
         with torch.no_grad():
             q_target = self.reward_scale * rewards + (1. - terminals) * \
                 self.discount * target_q_values
@@ -360,10 +355,12 @@ class SAC():
         # q1_pred.backward(retain_graph=True)
         # q1_loss.backward(retain_graph=True)
         q1_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.Q1.parameters(), max_norm=1.0)
         self.Q1_opt.step()
 
         self.Q2_opt.zero_grad()
         q2_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.Q2.parameters(), max_norm=1.0)
         self.Q2_opt.step()
 
         # Train policy
@@ -373,6 +370,7 @@ class SAC():
         self.policy_opt.zero_grad()
         # policy_loss.backward(retain_graph=True)
         policy_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=1.0)
         self.policy_opt.step()
 
         return (
@@ -401,16 +399,16 @@ class SAC():
         # with open(replaybufferdir, 'wb') as f:
         #     pickle.dump(self.replay_buffer, f)
             
-        rbdir = self.experiment_dir + '/replaybuffers'
-        if not os.path.exists(rbdir):
-            os.makedirs(rbdir)
-        # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"Replay_buffer_{int(self.stats['update_steps'] / self.save_interval)}.pkl"
-        replaybuffer_file = os.path.join(rbdir, filename)
+        # rbdir = self.experiment_dir + '/replaybuffers'
+        # if not os.path.exists(rbdir):
+        #     os.makedirs(rbdir)
+        # # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # filename = f"Replay_buffer_{int(self.stats['update_steps'] / self.save_interval)}.pkl"
+        # replaybuffer_file = os.path.join(rbdir, filename)
 
-        # Save the replay buffer
-        with open(replaybuffer_file, 'wb') as f:
-            pickle.dump(self.replay_buffer, f)
+        # # Save the replay buffer
+        # with open(replaybuffer_file, 'wb') as f:
+        #     pickle.dump(self.replay_buffer, f)
 
     def get_stats_to_save(self):
         return self.stats

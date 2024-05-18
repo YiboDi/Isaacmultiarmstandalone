@@ -24,16 +24,16 @@ from tensorboardX import SummaryWriter
 # from BaseNet import create_network
 from net_utils import create_lstm
 
-num_episodes = 75000  # Define the number of episodes for testing
+num_episodes = 70000  # Define the number of episodes for testing
 # rather than define a number, num_episode should be up to number of tasks used as training data
 training_data = os.listdir('/home/tp2/papers/multiarm_dataset/tasks')
 num_episodes = len(training_data)*2-5
 
 # env = expertSupervisionEnv()
-env = expertmultiEnv()
+env = expertmultiEnv(headless=True)
 
 # from multiarm_task import MultiarmTask
-from multiarm_with_supervision import MultiarmSupervision
+# from multiarm_with_supervision import MultiarmSupervision
 # task = MultiarmSupervision(name="MultiarmSupervision")
 from multiarm_paraenvs import MultiarmTask
 task = MultiarmTask(name="MultiarmParaenvs", env=env)
@@ -48,13 +48,13 @@ with open(file_path, 'r') as file:
 network = create_lstm(training_config=training_config)
 # print(network)
 # modify for each experiment
-experiment_name = '0423test'
+experiment_name = 'SACIL0516_noobservelinks'
 
-experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Di_custom/multiarmRLdata/experiments/' + experiment_name
+experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalonedata/experiments' + experiment_name
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            # load_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/experiments/01.24/checkpoints/ckpt_sac_lstm_00337'
+            # load_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalonedata/experimentsSACIL0514/checkpoints/ckpt_sac_lstm_04872'
             )
 writer = SummaryWriter(log_dir=log_dir)
 
@@ -97,7 +97,11 @@ for episode in range(num_episodes):
 
         # with supervision mode, take an action based on expert_waypoints
         elif env._task.mode == 'supervision':
-            actions = env.act_experts(step_count).to('cuda')
+            actions = env.act_experts(step_count).to('cuda') 
+
+            # if fail to load expert trajectory, jump to next episode
+            if actions is None:
+                break
             
         # Step through the environment
         # actions_reshaped = actions.reshape(env._task._num_envs, env._task.num_agents, *actions.shape[1:])

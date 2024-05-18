@@ -23,13 +23,13 @@ import torch
 # import math
 from math import pi
 
-import sys 
+# import sys 
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone')
 sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/robots')
 from taskloader import TaskLoader
 from utils import load_config
 
-from omni.isaac.sensor import _sensor
+# from omni.isaac.sensor import _sensor
 import omni.kit.commands
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.utils.prims import define_prim
@@ -51,7 +51,7 @@ class MultiarmTask(BaseTask):
         self.config = load_config(path='/home/tp2/papers/decentralized-multiarm/configs/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
-        self._num_envs = 64
+        self._num_envs = 128
         self._env_spacing = 0
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
@@ -72,13 +72,13 @@ class MultiarmTask(BaseTask):
         # self.delta_ori_reward = 0
         self.activation_radius = 100
         self.indiv_reach_target_reward = 1
-        self.coorp_reach_target_reward = 5
+        self.coorp_reach_target_reward = 2
         self.position_tolerance = 0.15 # modify based on the experiment result
         self.orientation_tolerance = 0.2
 
         self.num_franka_dofs = 6
 
-        self._max_episode_length = 200
+        self._max_episode_length = 150
 
         self.dof_lower_limits = torch.tensor([-2 * pi, -2 * pi, -pi, -2 * pi, -2 * pi, -2 * pi], device=self._device)
         self.dof_upper_limits = torch.tensor([2 * pi, 2 * pi, pi, 2 * pi, 2 * pi, 2 * pi], device=self._device)
@@ -94,6 +94,15 @@ class MultiarmTask(BaseTask):
 
         self.observation_space = None
         self.action_space = None
+
+        self.max_ee_pos = torch.tensor([1.6, 1.6, 0.9], device=self._device)
+        self.min_ee_pos = torch.tensor([-1.6, -1.6, 0.0], device=self._device)
+        self.max_base_pos = torch.tensor([0.8, 0.8, 0.0], device=self._device)
+        self.min_base_pos = torch.tensor([-0.8, -0.8, 0.0], device=self._device)
+        quaternion = torch.tensor([0, 0, 0, 0], device=self._device)
+        self.max_ee_pose = torch.cat([self.max_ee_pos, quaternion], dim=-1)
+        self.min_ee_pose = torch.cat([self.min_ee_pos, quaternion], dim=-1)
+
 
         
         BaseTask.__init__(self, name=name, offset=offset)
@@ -226,8 +235,12 @@ class MultiarmTask(BaseTask):
             self.mode = 'normal'
             self.current_tasks = []
             for i in range(self._num_envs):
+                # current_task = self.taskloader.get_next_task()
+                # while i != 0 and len(current_task.start_config) != len(self.current_tasks[0].start_config):
+                #     current_task = self.taskloader.get_next_task()
+                # self.current_tasks.append(current_task)
                 current_task = self.taskloader.get_next_task()
-                while i != 0 and len(current_task.start_config) != len(self.current_tasks[0].start_config):
+                while len(current_task.start_config) != 1: # test only environments with single robot
                     current_task = self.taskloader.get_next_task()
                 self.current_tasks.append(current_task)
         # no need to change to 'supervision' when all success
@@ -395,6 +408,7 @@ class MultiarmTask(BaseTask):
         # for i in range(4):
         #     print('poses of robot{} ee is :'.format(i) + str(self._franka_list[i].ee.get_world_poses()))
         #     print('poses of robot{} target is :'.format(i) + str(self._target_list[i].get_world_poses()))
+        self.actions = actions
         self.progress_buf += 1
 
         # test
@@ -511,6 +525,61 @@ class MultiarmTask(BaseTask):
 
         return self.ob
     
+    def pre_observations_nolinks(self): 
+        dof_pos = self.frankaview.get_joint_positions(clone=False)
+        dof_pos = dof_pos.view(self._num_envs, 4, 6)[:,:self.num_agents,:].to(self._device)
+        
+        self.ee_pos, self.ee_rot = self.frankaview.ee_link.get_world_poses(clone=False)
+        self.ee_pos = self.ee_pos.view(self._num_envs, 4, 3)[:,:self.num_agents,:].to(self._device)
+        self.ee_rot = self.ee_rot.view(self._num_envs,4,4)[:,:self.num_agents,:].to(self._device)
+        # link_position = self.frankaview.links.get_world_poses()[0].to(self._device)
+        # link_position = link_position.view(self._num_envs, 4, 30)[:,:self.num_agents,:]
+
+        # normalization
+        self.ee_pos = (self.ee_pos - self.min_ee_pos)/(self.max_ee_pos - self.min_ee_pos)
+        self.ee_rot = (self.ee_rot - self.min_ee_rot)/(self.max_ee_rot - self.min_ee_rot)
+
+        self.dof_pos = dof_pos
+
+        if self.progress_buf <= 1:
+
+            base_pose = self.frankaview.get_world_poses()
+            base_pose = torch.cat(base_pose, dim=-1).squeeze().to(self._device)
+            base_pose = base_pose.view(self._num_envs, 4, 7)[:,:self.num_agents,:]
+
+            target_eff_pose = self.targetview.get_world_poses()
+            target_eff_pose = torch.cat(target_eff_pose, dim=-1).to(self._device)
+            target_eff_pose = target_eff_pose.view(self._num_envs, 4, 7)[:,:self.num_agents,:]
+            self.target_eff_pose = target_eff_pose
+            target_eff_pose = torch.cat([target_eff_pose, target_eff_pose], dim=-1) # observation contains historical frame of target_eff_pose
+
+            # normalization
+            
+            
+            self.ob[:, :, 0:6] = dof_pos # joint_position
+            self.ob[:, :, 6:12] = dof_pos 
+            self.ob[:, :, 12:15] = self.ee_pos # world pos, need to transpose to pos to env
+            self.ob[:, :, 15:19] = self.ee_rot
+            self.ob[:, :, 19:22] = self.ee_pos
+            self.ob[:, :, 22:26] = self.ee_rot
+            self.ob[:, :, 26:40] = target_eff_pose # 7*2 # local pos to the env
+            # self.ob[:, :, 40:70] = link_position # should get world pos and transfer to env related pos
+            # self.ob[:, :, 70:100] = link_position
+            self.ob[:, :, 40:47] = base_pose
+
+        else:
+            self.ob[:, :, 0:6] = self.ob[:, :, 6:12]
+            self.ob[:, :, 6:12] = dof_pos
+            self.ob[:, :, 12:15] = self.ob[:, :, 19:22]
+            self.ob[:, :, 15:19] = self.ob[:, :, 22:26]
+            self.ob[:, :, 19:22] = self.ee_pos
+            self.ob[:, :, 22:26] = self.ee_rot
+            # self.ob[:, :, 26:40] = target_eff_pose # 7*2
+            # self.ob[:, :, 40:70] = self.ob[:, :, 70:100]
+            # self.ob[:, :, 70:100] = link_position
+
+        return self.ob
+    
     def get_observations(self):
         """
         shape of self.obs is (self._num_envs, self.num_agents, self.num_agents, self._num_observation)
@@ -519,7 +588,7 @@ class MultiarmTask(BaseTask):
         # firstly sort the self._franka_list by base distance, furthest to closest, for each env
         ob_start = time.time()
         # self.get_observation() # get dof_pos 
-        self.pre_observations() # get other ob, give up after testing
+        self.pre_observations_nolinks() # get other ob, give up after testing
         ob_end = time.time()
         print('get_observation time:', ob_end - ob_start)
 
@@ -720,10 +789,13 @@ class MultiarmTask(BaseTask):
             collision_penalties + indiv_reach_target_rewards +\
             collectively_reach_targets_reward.unsqueeze(dim=-1) \
             + pos_rewards + ori_rewards
+        # -1 + 1 +
+        # 2
+        # + (0, 1/e) + (0, 1/e)
 
         reward = franka_rewards_sum
 
-        return reward
+        return reward # reward for each robot
 
     def is_done(self):
 

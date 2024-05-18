@@ -366,7 +366,7 @@ class TaskLoader:
 
     def get_next_task(self): 
         if self.current_idx >= len(self.files)\
-                and not self.repeat:
+                and not self.repeat: # default to be false
             print("[TargetLoader] Out of targets")
             while True:
                 sleep(5)

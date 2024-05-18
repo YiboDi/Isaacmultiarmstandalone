@@ -19,7 +19,7 @@ default_physx_params = {
     "gpu_max_rigid_contact_count": 524288,
     "gpu_max_rigid_patch_count": 33554432,
     "gpu_found_lost_pairs_capacity": 524288,
-    "gpu_found_lost_aggregate_pairs_capacity": 1095366,
+    "gpu_found_lost_aggregate_pairs_capacity": 2095366,
     "gpu_total_aggregate_pairs_capacity": 1048576,
     "gpu_max_soft_body_contacts": 1048576,
     "gpu_max_particle_contacts": 1048576,

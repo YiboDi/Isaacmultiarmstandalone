@@ -18,8 +18,10 @@ class expertmultiEnv(VecEnvBase):
         # self.mode = self._task.mode
         self.mode = None
         self.expert_root_dir = '/home/tp2/papers/multiarm_dataset/expert/'
-        self.max_action = 2.0
+        self.max_action = 1.0
         self.joint_tolerance = 0.4
+
+        self.failed_count = 0
     
     def step(self, actions):
         """ Basic implementation for stepping simulation. 
@@ -120,15 +122,17 @@ class expertmultiEnv(VecEnvBase):
             except Exception as e:
                 # Handle the exception as needed (e.g., log an error message, return None, etc.)
                 print(f"Error loading waypoints for task {task_id}: {e}")
-                rrt_waypoints = None  # Or consider an alternative handling strategy
+                # rrt_waypoints = None  # Or consider an alternative handling strategy
+                return None
 
             waypoints_list.append(rrt_waypoints)
-
-            padded_waypoints_list = self.waypoints_preprocessing(waypoints_list, max_len)
+        # pad the trajectories to max_length
+        padded_waypoints_list = self.waypoints_preprocessing(waypoints_list, max_len)
 
         return padded_waypoints_list # return a list (size is num_envs) of np.array/torch.tensor (shape is [num_agents, num_steps])
     
     def waypoints_preprocessing(self, waypoints_list, max_len):
+        # pad all the trajectories to max_length
         padded_waypoints_list = []
         for i, waypoints in enumerate(waypoints_list):
             last_element = waypoints[-1]
@@ -196,10 +200,14 @@ class expertmultiEnv(VecEnvBase):
         if torch.all(step_count == 0):
         # Assuming `load_expert_waypoints_for_tasks` can load multiple trajectories for parallel tasks
             expert_waypoints_batch = self.load_expert_waypoints_for_tasks(task_ids=[task.id for task in self._task.current_tasks]) # a list of np.array with same size [max_size, 6]
-            expert_waypoints = np.stack(expert_waypoints_batch, axis=0) # shape: [num_envs, max_size, 6]
-            self.expert_waypoints = torch.tensor(expert_waypoints).to('cuda') # shape: [num_envs, max_size, num_agents*6]
-            max_size = expert_waypoints.shape[1]
-            self.expert_waypoints = self.expert_waypoints.view(self._task._num_envs, max_size, self._task.num_agents, 6) # shape: [num_envs, max_size, num_agents*6]
+            if expert_waypoints_batch is None:
+                self.failed_count += 1
+                return None
+            else:
+                expert_waypoints = np.stack(expert_waypoints_batch, axis=0) # shape: [num_envs, max_size, 6]
+                self.expert_waypoints = torch.tensor(expert_waypoints).to('cuda') # shape: [num_envs, max_size, num_agents*6]
+                max_size = expert_waypoints.shape[1]
+                self.expert_waypoints = self.expert_waypoints.view(self._task._num_envs, max_size, self._task.num_agents, 6) # shape: [num_envs, max_size, num_agents*6]
         # Initialize a tensor to store current joint positions from all parallel Isaac sim environments
         curr_js = self._task.dof_pos # [num_envs, num_agents, 6]
         # curr_js = curr_js.unsqueeze(1) # [num_envs, 1, num_agents, 6]
@@ -211,6 +219,7 @@ class expertmultiEnv(VecEnvBase):
 
 
         target_wp_idx = next_wp_idx.clone()
+
 
         while True:
             target_wp_idx_reshaped = target_wp_idx.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand(-1,1,self.expert_waypoints.shape[2], self.expert_waypoints.shape[3]) # [num_envs, max_size, num_agents, 6]
