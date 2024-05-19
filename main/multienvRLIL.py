@@ -48,7 +48,7 @@ with open(file_path, 'r') as file:
 network = create_lstm(training_config=training_config)
 # print(network)
 # modify for each experiment
-experiment_name = 'SACIL0516_noobservelinks'
+experiment_name = 'SACIL0519'
 
 experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalonedata/experiments' + experiment_name
 log_dir = experiment_dir + '/logs'

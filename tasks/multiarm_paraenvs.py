@@ -87,9 +87,9 @@ class MultiarmTask(BaseTask):
 
         self.max_velocity = torch.tensor([3.15, 3.15, 3.15, 3.2, 3.2, 3.2], device=self._device) # true for real ur5
 
-        self._num_observation = 0 #107
-        for item in self.config['training']['observations']['items']:
-            self._num_observation += item['dimensions'] * (item['history'] + 1)
+        self._num_observation =  47 #107, modified to 47 without link position
+        # for item in self.config['training']['observations']['items']:
+        #     self._num_observation += item['dimensions'] * (item['history'] + 1)
         self._num_action = 6 # 6 joint on ur5
 
         self.observation_space = None
@@ -97,12 +97,16 @@ class MultiarmTask(BaseTask):
 
         self.max_ee_pos = torch.tensor([1.6, 1.6, 0.9], device=self._device)
         self.min_ee_pos = torch.tensor([-1.6, -1.6, 0.0], device=self._device)
-        self.max_base_pos = torch.tensor([0.8, 0.8, 0.0], device=self._device)
-        self.min_base_pos = torch.tensor([-0.8, -0.8, 0.0], device=self._device)
-        quaternion = torch.tensor([0, 0, 0, 0], device=self._device)
-        self.max_ee_pose = torch.cat([self.max_ee_pos, quaternion], dim=-1)
-        self.min_ee_pose = torch.cat([self.min_ee_pos, quaternion], dim=-1)
-
+        self.max_base_pos = torch.tensor([0.8, 0.8], device=self._device)
+        self.min_base_pos = torch.tensor([-0.8, -0.8], device=self._device)
+        # quaternion = torch.tensor([0, 0, 0, 0], device=self._device)
+        # self.max_ee_pose = torch.cat([self.max_ee_pos, quaternion], dim=-1)
+        # self.min_ee_pose = torch.cat([self.min_ee_pos, quaternion], dim=-1)
+        # self.max_base_pose = torch.cat([self.max_base_pos, quaternion], dim=-1)
+        # self.min_base_pose = torch.cat([self.min_base_pos, quaternion], dim=-1)
+        #! consider range of joint config 
+        self.max_joint = torch.tensor([3.6, 0.1, 2.9, 3.1, 4.0, 4.2], device=self._device)
+        self.min_joint = torch.tensor([-6.2, -3.3, -1.8, -4.3, -4.7, -4.4], device=self._device)
 
         
         BaseTask.__init__(self, name=name, offset=offset)
@@ -378,7 +382,6 @@ class MultiarmTask(BaseTask):
 
         self.base_pos = base_pos
 
-
     def pre_physics_step(self, actions) -> None: # actions should have size of (self._num_envs, self.num_agent, 6)
 
         actions = actions.to(self._device)
@@ -393,6 +396,10 @@ class MultiarmTask(BaseTask):
         # targets = self.franka_dof_targets + scaled_action 
         # try directly set the scaled action to robot instead of accumulation
         # targets = scaled_action
+
+        # scale the actions from (-1,1) back to joint range
+        actions = (actions+1)/2 * (self.max_joint - self.min_joint) + self.min_joint
+
         targets = actions
         self.franka_dof_targets[:] = tensor_clamp(targets, self.dof_lower_limits, self.dof_upper_limits)
         # not certain about the indices
@@ -536,25 +543,34 @@ class MultiarmTask(BaseTask):
         # link_position = link_position.view(self._num_envs, 4, 30)[:,:self.num_agents,:]
 
         # normalization
-        self.ee_pos = (self.ee_pos - self.min_ee_pos)/(self.max_ee_pos - self.min_ee_pos)
-        self.ee_rot = (self.ee_rot - self.min_ee_rot)/(self.max_ee_rot - self.min_ee_rot)
+        self.ee_pos = 2*(self.ee_pos - self.min_ee_pos)/(self.max_ee_pos - self.min_ee_pos) - 1
+        # self.ee_rot = (self.ee_rot - f)/(self.max_ee_rot - self.min_ee_rot)
+        dof_pos = 2*(dof_pos - self.min_joint)/(self.max_joint - self.min_joint) - 1
 
         self.dof_pos = dof_pos
 
         if self.progress_buf <= 1:
 
             base_pose = self.frankaview.get_world_poses()
+            # # normalization
+            # base_pose[0] = 2 * (base_pose[0] - self.min_base_pos)/(self.max_base_pos - self.min_base_pos) - 1
             base_pose = torch.cat(base_pose, dim=-1).squeeze().to(self._device)
             base_pose = base_pose.view(self._num_envs, 4, 7)[:,:self.num_agents,:]
+            # normalization of x and y
+            base_pose[:,:,:2] = 2*(base_pose[:,:,:2] - self.min_base_pos)/(self.max_base_pos - self.min_base_pos) - 1
 
             target_eff_pose = self.targetview.get_world_poses()
+            # # normalization
+            # target_eff_pose[0] = 2 * (target_eff_pose[0] - self.min_ee_pos)/(self.max_ee_pos - self.min_ee_pos) - 1
             target_eff_pose = torch.cat(target_eff_pose, dim=-1).to(self._device)
             target_eff_pose = target_eff_pose.view(self._num_envs, 4, 7)[:,:self.num_agents,:]
+            # normalization
+            target_eff_pose[:,:,:3] = 2*(target_eff_pose[:,:,:3] - self.min_ee_pos)/(self.max_ee_pos - self.min_ee_pos) - 1
             self.target_eff_pose = target_eff_pose
             target_eff_pose = torch.cat([target_eff_pose, target_eff_pose], dim=-1) # observation contains historical frame of target_eff_pose
 
             # normalization
-            
+
             
             self.ob[:, :, 0:6] = dof_pos # joint_position
             self.ob[:, :, 6:12] = dof_pos 

@@ -4,7 +4,7 @@ from transformer import tf_policy, tf_q
 
 
 
-def create_lstm(training_config, actor_obs_dim = 107, action_dim = 6, critic_obs_dim = 107):
+def create_lstm(training_config, actor_obs_dim = 47, action_dim = 6, critic_obs_dim = 47):
     policy_net = StochasticActor(
             obs_dim=actor_obs_dim,
             action_dim=action_dim,
@@ -32,7 +32,7 @@ def create_lstm(training_config, actor_obs_dim = 107, action_dim = 6, critic_obs
 
     return network
 
-def create_testnet(actor_obs_dim = 107, action_dim = 6, critic_obs_dim = 107):
+def create_testnet(actor_obs_dim = 47, action_dim = 6, critic_obs_dim = 47):
     policy_net = testpolicy(
         # obs_dim=actor_obs_dim,
         # action_dim=action_dim,
@@ -54,7 +54,7 @@ def create_testnet(actor_obs_dim = 107, action_dim = 6, critic_obs_dim = 107):
     return network
 
 
-def create_transformer(training_config, actor_obs_dim = 107, action_dim = 6, critic_obs_dim = 107):
+def create_transformer(training_config, actor_obs_dim = 47, action_dim = 6, critic_obs_dim = 47):
     policy_net = tf_policy( obs_dim=actor_obs_dim,
                             action_dim=action_dim,
                             action_variance_bounds=training_config['action_variance'],

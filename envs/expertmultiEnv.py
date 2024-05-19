@@ -22,6 +22,9 @@ class expertmultiEnv(VecEnvBase):
         self.joint_tolerance = 0.4
 
         self.failed_count = 0
+
+        self.max_joint = torch.tensor([3.6, 0.1, 2.9, 3.1, 4.0, 4.2], device='cuda')
+        self.min_joint = torch.tensor([-6.2, -3.3, -1.8, -4.3, -4.7, -4.4], device='cuda')
     
     def step(self, actions):
         """ Basic implementation for stepping simulation. 
@@ -236,6 +239,7 @@ class expertmultiEnv(VecEnvBase):
             target_wp_idx = torch.where(cond, target_wp_idx+1, target_wp_idx)
 
         actions = target_j #[num_envs, num_agents, 6]
+        actions = 2*(actions - self.min_joint) / (self.max_joint - self.min_joint) - 1 #[num_envs, num_agents, 6]
 
 
         return actions.clone()
