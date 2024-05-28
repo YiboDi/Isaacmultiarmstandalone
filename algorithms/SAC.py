@@ -43,8 +43,8 @@ class SAC():
         # self.writer = SummaryWriter(log_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/logs/Training')
         self.writer = SummaryWriter(log_dir = self.log_dir)
         self.policy_lr = 0.0005
-        # self.q_lr = 0.001
-        self.q_lr = 0.0003
+        self.q_lr = 0.001
+        # self.q_lr = 0.0003
 
         # self.policy_opt = optim.Adam(self.policy_net.parameters(), lr=self.policy_lr)
         # self.q1_optimizer = optim.Adam(self.q1_net.parameters(), lr=self.q_lr)
@@ -64,8 +64,8 @@ class SAC():
         self.replay_buffer = ReplayBufferDataset(data=data_dic, device=self.device, capacity=self.replay_buffer_capacity)
         # self.train_frequency = 100000
         # self.tau = 0.05
-        # self.tau = 0.001
-        self.tau = 0.01
+        self.tau = 0.001
+        # self.tau = 0.01
 
         self.last_train_size = 0
 

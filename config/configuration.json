@@ -1,0 +1,33 @@
+{
+    "task":{
+        "num_env":128,
+        "max_episode_length":150,
+        "observations":{
+            "type":"reduced",
+            "dimensions":47,
+        }
+    },
+    "expert":{
+
+    },
+    "main":{
+        "type":"train",
+        "headless":"True",
+    },
+    "algorithm":{
+        "type":"sac",
+        "hyperparameters":{
+            "pi_lr": 0.0005,
+            "q_lr": 0.0003,
+            "discount": 0.99,
+            "tau": 0.01,
+            "alpha": 0.001,
+            "batch_size": 128,
+            "warmup_steps": 100000,
+            "replay_buffer_capacity": 100000,
+            "num_updates_per_train": 800,
+            "minimum_replay_buffer_freshness": 0.5,
+            "action_scaling": 1
+        }
+    }
+}

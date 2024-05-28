@@ -535,6 +535,7 @@ class MultiarmTask(BaseTask):
     def pre_observations_nolinks(self): 
         dof_pos = self.frankaview.get_joint_positions(clone=False)
         dof_pos = dof_pos.view(self._num_envs, 4, 6)[:,:self.num_agents,:].to(self._device)
+        self.dof_pos = dof_pos # self.dof_pos is the real joint position of the robot 
         
         self.ee_pos, self.ee_rot = self.frankaview.ee_link.get_world_poses(clone=False)
         self.ee_pos = self.ee_pos.view(self._num_envs, 4, 3)[:,:self.num_agents,:].to(self._device)
@@ -547,7 +548,7 @@ class MultiarmTask(BaseTask):
         # self.ee_rot = (self.ee_rot - f)/(self.max_ee_rot - self.min_ee_rot)
         dof_pos = 2*(dof_pos - self.min_joint)/(self.max_joint - self.min_joint) - 1
 
-        self.dof_pos = dof_pos
+        # self.dof_pos = dof_pos
 
         if self.progress_buf <= 1:
 

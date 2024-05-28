@@ -48,13 +48,13 @@ with open(file_path, 'r') as file:
 network = create_lstm(training_config=training_config)
 # print(network)
 # modify for each experiment
-experiment_name = 'SACIL0519'
+experiment_name = 'SACIL0520continue'
 
-experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalonedata/experiments' + experiment_name
+experiment_dir = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalonedata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            # load_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalonedata/experimentsSACIL0514/checkpoints/ckpt_sac_lstm_04872'
+            load_path = '/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalonedata/experiments/SACIL0520/checkpoints/ckpt_sac_lstm_02159'
             )
 writer = SummaryWriter(log_dir=log_dir)
 
