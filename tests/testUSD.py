@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/robots')
+sys.path.append('/home/dyb/Thesis/Isaacmultiarmstandalone/robots')
 
 from omni.isaac.kit import SimulationApp
 

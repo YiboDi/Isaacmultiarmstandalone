@@ -1,7 +1,7 @@
 import sys 
 
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/tasks')
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/envs')
+sys.path.append('/home/dyb/Thesis/Isaacmultiarmstandalone/tasks')
+sys.path.append('/home/dyb/Thesis/Isaacmultiarmstandalone/envs')
 import gym
 from vec_env_base_custom import VecEnvBase
 # from omni.isaac.gym.vec_env import VecEnvMT

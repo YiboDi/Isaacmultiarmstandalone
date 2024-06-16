@@ -1,7 +1,7 @@
 import pybullet as p
 
 p.connect(p.GUI)
-robot = p.loadURDF("/home/tp2/.local/share/ov/pkg/isaac_sim-2023.1.1/Isaacmultiarmstandalone/assets/ur5/ur5.urdf", useFixedBase=True)
+robot = p.loadURDF("/home/dyb/Thesis/Isaacmultiarmstandalone/assets/ur5/ur5.urdf", useFixedBase=True)
 
 num_joints = p.getNumJoints(robot)
 
