@@ -5,7 +5,7 @@ sys.path.append('/home/dyb/Thesis/Isaacmultiarmstandalone/envs')
 sys.path.append('/home/dyb/Thesis/Isaacmultiarmstandalone/tasks')
 sys.path.append('/home/dyb/Thesis/Isaacmultiarmstandalone/algorithms')
 sys.path.append('/home/dyb/Thesis/Isaacmultiarmstandalone/networks')
-/home/dyb/Thesis/Isaacmultiarmstandalone/envs/pureILenv.py
+# /home/dyb/Thesis/Isaacmultiarmstandalone/envs/pureILenv.py
 import gym
 from vec_env_base_custom import VecEnvBase
 import torch
