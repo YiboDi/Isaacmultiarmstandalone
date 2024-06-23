@@ -48,13 +48,13 @@ with open(file_path, 'r') as file:
 network = create_lstm(training_config=training_config)
 # print(network)
 # modify for each experiment
-experiment_name = 'SACIL0520continue'
+experiment_name = 'SACIL0624'
 
 experiment_dir = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            # load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0520/checkpoints/ckpt_sac_lstm_02159'
+            # load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0623/checkpoints/ckpt_sac_lstm_00061'
             )
 writer = SummaryWriter(log_dir=log_dir)
 
@@ -68,7 +68,7 @@ for episode in range(num_episodes):
     reset = False # flag indicate the reset
 
     mode = env.mode
-    cumulative_reward = torch.zeros(env._task._num_envs, device='cuda')
+    cumulative_reward = torch.zeros(env._task._num_envs, env._task.num_agents, device='cuda')
     # cumulative_reward = torch.zeros(1, device='cuda')
 
     end = torch.zeros(env._task._num_envs, device='cuda')
@@ -140,7 +140,7 @@ for episode in range(num_episodes):
             dones = dones[end_mask]
         # alternatively using .flatten()
         data_dic = {
-        'observations' : [obs_agent for obs_agents in obs for obs_agent in obs_agents], # here n*107
+        'observations' : [obs_agent for obs_agents in observations for obs_agent in obs_agents], # here n*107
         'actions' : [act_agent for act_agents in actions for act_agent in act_agents], # here 6
         'rewards' : [rew_agent for rew_agents in rewards for rew_agent in rew_agents ], # here 1
         'next_observations' : [next_obs_agent for next_obs_agents in next_observations for next_obs_agent in next_obs_agents ],

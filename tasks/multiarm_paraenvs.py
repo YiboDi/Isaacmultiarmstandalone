@@ -52,7 +52,7 @@ class MultiarmTask(BaseTask):
         self.config = load_config(path='/home/dyb/Thesis/Isaacmultiarmstandalone/config/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/dyb/Thesis/tasks', shuffle=True)
-        self._num_envs = 128
+        self._num_envs = 256
         self._env_spacing = 0
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
@@ -74,10 +74,10 @@ class MultiarmTask(BaseTask):
         self.activation_radius = 100
         self.indiv_reach_target_reward = 5
         self.coorp_reach_target_reward = 10
-        # self.position_tolerance = 0.15 # modify based on the experiment result
-        # self.orientation_tolerance = 0.2
-        self.position_tolerance = 0.03 # modify based on the experiment result
-        self.orientation_tolerance = 0.05
+        self.position_tolerance = 0.35 # modify based on the experiment result
+        self.orientation_tolerance = 0.25
+        # self.position_tolerance = 0.05 # modify based on the experiment result
+        # self.orientation_tolerance = 0.05
 
         self.num_franka_dofs = 6
 
@@ -252,6 +252,9 @@ class MultiarmTask(BaseTask):
                 if single_agent:
                     while len(current_task.start_config) != 1: # test only environments with single robot
                         current_task = self.taskloader.get_next_task()
+                else:
+                    while i != 0 and len(current_task.start_config) != len(self.current_tasks[0].start_config):
+                        current_task = self.taskloader.get_next_task()
                 self.current_tasks.append(current_task)
         # no need to change to 'supervision' when all success
         elif self.mode == 'normal':
@@ -413,7 +416,7 @@ class MultiarmTask(BaseTask):
         for i in range(self.num_agents):
             self._franka_list[i].set_joint_position_targets(self.franka_dof_targets[:, i, :]) 
             # also set the joint position directly to the action, simulating that we have a perfect controler
-            self._franka_list[i].set_joint_position(self.franka_dof_targets[:, i, :]) 
+            # self._franka_list[i].set_joint_positions(self.franka_dof_targets[:, i, :]) 
             # check the base poses of robots in simulation with the current_task.base_poses
             # print(str(self._franka_list[i].get_local_poses()) + 'and the configurations:')
             # for current_task in self.current_tasks:

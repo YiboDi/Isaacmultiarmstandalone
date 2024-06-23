@@ -216,7 +216,7 @@ class expertmultiEnv(VecEnvBase):
         # curr_js = curr_js.unsqueeze(1) # [num_envs, 1, num_agents, 6]
         distances = torch.norm(self.expert_waypoints - curr_js.unsqueeze(1), dim=-1) # [num_envs, max_size, num_agents], unsqueeze for broadcasting
         distances = torch.sum(distances, dim=-1) # [num_envs, max_size]
-        next_wp_idx = torch.argmin(distances, dim=1)  # [num_envs]
+        next_wp_idx = torch.argmin(distances, dim=1)  # [num_envs], return the index of the min value along second dim
 
         next_wp_idx = torch.where(next_wp_idx >= self.expert_waypoints.shape[1]-1, next_wp_idx, next_wp_idx+1)
 

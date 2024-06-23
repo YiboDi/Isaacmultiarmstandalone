@@ -53,8 +53,8 @@ class SAC():
         self.warmup_steps = 100000
         self.minimum_replay_buffer_freshness = 0.5 # 0.7
         self.replay_buffer_capacity = 100000 # Common defaults are 1,000,000 for the replay buffer size
-        self.batch_size = 128 #(Typically 64-256 for SAC algorithms), 4096 from default setting
-        self.num_updates_per_train = 800 #train_epoch() for 10 times each train()    
+        self.batch_size = 4096 #(Typically 64-256 for SAC algorithms), 4096 from default setting
+        self.num_updates_per_train = 10 #train_epoch() for this value times each train()    
 
         data_dic = {'observations':[],
                     'actions':[],
@@ -78,7 +78,7 @@ class SAC():
         # self.reward_scale = 0.5
         self.Q_criterion = torch.nn.MSELoss()
         # self.save_interval = 500
-        self.save_interval = 800
+        self.save_interval = 10*self.num_updates_per_train
         # self.save_interval = 10
 
         self.deterministic = True
