@@ -24,7 +24,7 @@ from tensorboardX import SummaryWriter
 from net_utils import create_lstm
 
 # rather than define a number, num_episode should be up to number of tasks used as training data
-training_data = os.listdir('/home/tp2/papers/multiarm_dataset/tasks')
+training_data = os.listdir('/home/dyb/Thesis/tasks')
 num_episodes = len(training_data)*2-500
 
 env = pureILenv()

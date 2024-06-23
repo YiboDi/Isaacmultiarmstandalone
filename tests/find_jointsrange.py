@@ -46,5 +46,5 @@ def main(expert_root_dir):
     print(f"Min values: {min_values}")
 
 if __name__ == "__main__":
-    expert_root_dir = "/home/tp2/papers/multiarm_dataset/expert"
+    expert_root_dir = "/home/dyb/Thesis/expert"
     main(expert_root_dir)

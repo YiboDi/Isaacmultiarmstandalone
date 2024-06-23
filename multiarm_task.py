@@ -31,7 +31,7 @@ import sys
 sys.path.append('/home/dyb/Thesis/Isaacmultiarmstandalone')
 sys.path.append('/home/dyb/Thesis/Isaacmultiarmstandalone/robots')
 from taskloader import TaskLoader
-from utils import load_config
+from thesis_utils import load_config
 
 from omniisaacgymenvs.robots.articulations.franka import Franka
 from omniisaacgymenvs.robots.articulations.views.franka_view import FrankaView
@@ -52,7 +52,7 @@ class MultiarmTask(BaseTask):
 
         self.config = load_config(path='/home/tp2/papers/decentralized-multiarm/configs/default.json')
 
-        self.taskloader = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
+        self.taskloader = TaskLoader(root_dir='/home/dyb/Thesis/tasks', shuffle=True)
         self.current_task = self.taskloader.get_next_task()
 
         self.action_scale = 1.0

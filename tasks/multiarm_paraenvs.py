@@ -1,6 +1,6 @@
 import sys
 import time
-sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/exts')
+# sys.path.append('/home/tp2/.local/share/ov/pkg/isaac_sim-2022.2.1/exts')
 
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.core.utils.stage import add_reference_to_stage
@@ -27,7 +27,8 @@ from math import pi
 sys.path.append('/home/dyb/Thesis/Isaacmultiarmstandalone')
 sys.path.append('/home/dyb/Thesis/Isaacmultiarmstandalone/robots')
 from taskloader import TaskLoader
-from utils import load_config
+
+from thesis_utils import load_config
 
 # from omni.isaac.sensor import _sensor
 import omni.kit.commands
@@ -48,9 +49,9 @@ class MultiarmTask(BaseTask):
         self.mode = 'supervision'
         self._env = env
 
-        self.config = load_config(path='/home/tp2/papers/decentralized-multiarm/configs/default.json')
+        self.config = load_config(path='/home/dyb/Thesis/Isaacmultiarmstandalone/config/default.json')
 
-        self.taskloader = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
+        self.taskloader = TaskLoader(root_dir='/home/dyb/Thesis/tasks', shuffle=True)
         self._num_envs = 128
         self._env_spacing = 0
 
@@ -67,14 +68,16 @@ class MultiarmTask(BaseTask):
 
         self._device = "cuda"
 
-        self.collision_penalty = -1
+        self.collision_penalty = -15
         # self.delta_pos_reward = 0
         # self.delta_ori_reward = 0
         self.activation_radius = 100
-        self.indiv_reach_target_reward = 1
-        self.coorp_reach_target_reward = 2
-        self.position_tolerance = 0.15 # modify based on the experiment result
-        self.orientation_tolerance = 0.2
+        self.indiv_reach_target_reward = 5
+        self.coorp_reach_target_reward = 10
+        # self.position_tolerance = 0.15 # modify based on the experiment result
+        # self.orientation_tolerance = 0.2
+        self.position_tolerance = 0.03 # modify based on the experiment result
+        self.orientation_tolerance = 0.05
 
         self.num_franka_dofs = 6
 
@@ -87,7 +90,7 @@ class MultiarmTask(BaseTask):
 
         self.max_velocity = torch.tensor([3.15, 3.15, 3.15, 3.2, 3.2, 3.2], device=self._device) # true for real ur5
 
-        self._num_observation =  47 #107, modified to 47 without link position
+        self._num_observation = 47 #107, modified to 47 without link position
         # for item in self.config['training']['observations']['items']:
         #     self._num_observation += item['dimensions'] * (item['history'] + 1)
         self._num_action = 6 # 6 joint on ur5
@@ -107,6 +110,8 @@ class MultiarmTask(BaseTask):
         #! consider range of joint config 
         self.max_joint = torch.tensor([3.6, 0.1, 2.9, 3.1, 4.0, 4.2], device=self._device)
         self.min_joint = torch.tensor([-6.2, -3.3, -1.8, -4.3, -4.7, -4.4], device=self._device)
+
+        self.single_agent = False
 
         
         BaseTask.__init__(self, name=name, offset=offset)
@@ -234,7 +239,7 @@ class MultiarmTask(BaseTask):
     def set_initial_camera_params(self, camera_position=[5, 5, 2], camera_target=[0, 0, 0]):
         set_camera_view(eye=camera_position, target=camera_target, camera_prim_path="/OmniverseKit_Persp")
 
-    def update_tasks(self):
+    def update_tasks(self, single_agent):
         if self.mode == 'supervision':
             self.mode = 'normal'
             self.current_tasks = []
@@ -244,8 +249,9 @@ class MultiarmTask(BaseTask):
                 #     current_task = self.taskloader.get_next_task()
                 # self.current_tasks.append(current_task)
                 current_task = self.taskloader.get_next_task()
-                while len(current_task.start_config) != 1: # test only environments with single robot
-                    current_task = self.taskloader.get_next_task()
+                if single_agent:
+                    while len(current_task.start_config) != 1: # test only environments with single robot
+                        current_task = self.taskloader.get_next_task()
                 self.current_tasks.append(current_task)
         # no need to change to 'supervision' when all success
         elif self.mode == 'normal':
@@ -269,7 +275,7 @@ class MultiarmTask(BaseTask):
         """
 
         #updata tasks list
-        self.update_tasks()
+        self.update_tasks(self.single_agent)
         self.num_agents=len(self.current_tasks[0].start_config)
         
         self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_agents, self._num_action))
@@ -406,6 +412,8 @@ class MultiarmTask(BaseTask):
         # for i in range(self._num_envs):
         for i in range(self.num_agents):
             self._franka_list[i].set_joint_position_targets(self.franka_dof_targets[:, i, :]) 
+            # also set the joint position directly to the action, simulating that we have a perfect controler
+            self._franka_list[i].set_joint_position(self.franka_dof_targets[:, i, :]) 
             # check the base poses of robots in simulation with the current_task.base_poses
             # print(str(self._franka_list[i].get_local_poses()) + 'and the configurations:')
             # for current_task in self.current_tasks:
@@ -778,10 +786,11 @@ class MultiarmTask(BaseTask):
         # ori_delta = torch.norm(self.ee_rot - self.target_eff_pose[:,:,4:], dim=-1)
 
         # Smooth, continuous reward for getting closer to the target position
-        pos_rewards[:, :] = torch.exp(-self.pos_delta / self.position_tolerance)
-
+        # pos_rewards[:, :] = torch.exp(-self.pos_delta / self.position_tolerance)
+        pos_rewards[:, :] = -1.0 * self.pos_delta
         # Smooth, continuous reward for aligning orientation to the target
-        ori_rewards[:, :] = torch.exp(-self.ori_delta / self.orientation_tolerance)
+        # ori_rewards[:, :] = torch.exp(-self.ori_delta / self.orientation_tolerance)
+        ori_rewards[:, :] = -1.0 * self.ori_delta
 
 
         

@@ -17,7 +17,7 @@ class expertSupervisionEnv(VecEnvBase):
         super(expertSupervisionEnv, self).__init__(headless=headless)
         # self.mode = self._task.mode
         self.mode = None
-        self.expert_root_dir = '/home/tp2/papers/multiarm_dataset/expert/'
+        self.expert_root_dir = '/home/dyb/Thesis/expert/'
         self.max_action = 1.0
         self.joint_tolerance = 0.2
 

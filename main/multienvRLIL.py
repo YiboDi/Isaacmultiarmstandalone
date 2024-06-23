@@ -24,10 +24,10 @@ from tensorboardX import SummaryWriter
 # from BaseNet import create_network
 from net_utils import create_lstm
 
-num_episodes = 70000  # Define the number of episodes for testing
+# num_episodes = 70000  # Define the number of episodes for testing
 # rather than define a number, num_episode should be up to number of tasks used as training data
-training_data = os.listdir('/home/tp2/papers/multiarm_dataset/tasks')
-num_episodes = len(training_data)*2-5
+training_data = os.listdir('/home/dyb/Thesis/tasks')
+num_episodes = len(training_data)*2
 
 # env = expertSupervisionEnv()
 env = expertmultiEnv(headless=True)
@@ -54,9 +54,12 @@ experiment_dir = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/' + e
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0520/checkpoints/ckpt_sac_lstm_02159'
+            # load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0520/checkpoints/ckpt_sac_lstm_02159'
             )
 writer = SummaryWriter(log_dir=log_dir)
+
+# whether data in the envs with self.is_terminals = 1 will be recorded into replay buffer
+terminate_for_terminals = False
 
 # torch.autograd.set_detect_anomaly(True)
 
@@ -65,8 +68,9 @@ for episode in range(num_episodes):
     reset = False # flag indicate the reset
 
     mode = env.mode
-    # cumulative_reward = torch.zeros(env._task._num_envs, device='cuda')
-    cumulative_reward = torch.zeros(1, device='cuda')
+    cumulative_reward = torch.zeros(env._task._num_envs, device='cuda')
+    # cumulative_reward = torch.zeros(1, device='cuda')
+
     end = torch.zeros(env._task._num_envs, device='cuda')
 
     step_count = torch.zeros(env._task._num_envs, device='cuda')
@@ -74,8 +78,9 @@ for episode in range(num_episodes):
     while not reset: # loop in one episode
         step_start = time.time()
         # mode = env.mode
-        end = env._task.is_terminals
-        end_mask = end!=1
+        if terminate_for_terminals:
+            end = env._task.is_terminals
+            end_mask = end!=1
         # observations = env._task.get_observations() # num_robots * num_robots * 107
         # with normal mode, take an action which NN output.
         if env._task.mode == 'normal':
@@ -97,7 +102,8 @@ for episode in range(num_episodes):
 
         # with supervision mode, take an action based on expert_waypoints
         elif env._task.mode == 'supervision':
-            actions = env.act_experts(step_count).to('cuda') 
+            # actions = env.act_experts(step_count).to('cuda') 
+            actions = env.act_experts(step_count)
 
             # if fail to load expert trajectory, jump to next episode
             if actions is None:
@@ -125,12 +131,13 @@ for episode in range(num_episodes):
         # except:
         #     pass
         # else:
-        rpextend_start = time.time()
-        obs = observations[end_mask]
-        actions = actions[end_mask]
-        rewards = rewards[end_mask]
-        next_observations = next_observations[end_mask]
-        dones = dones[end_mask]
+        # rpextend_start = time.time()
+        if terminate_for_terminals:
+            obs = observations[end_mask]
+            actions = actions[end_mask]
+            rewards = rewards[end_mask]
+            next_observations = next_observations[end_mask]
+            dones = dones[end_mask]
         # alternatively using .flatten()
         data_dic = {
         'observations' : [obs_agent for obs_agents in obs for obs_agent in obs_agents], # here n*107
@@ -140,8 +147,8 @@ for episode in range(num_episodes):
         'is_terminal' : [done_agent for done_agents in dones for done_agent in done_agents ] # self.is_terminal has shape of [num_envs], representing if terminal for each env. but here should use done with shape of [num_envs,num_agents]
         }
         model.replay_buffer.extend(data_dic) # rewards are not torch tensor, but when using in training, loaded as torch tensor
-        rpextend_end = time.time()
-        print('rpextend time: ', rpextend_end-rpextend_start)
+        # rpextend_end = time.time()
+        # print('rpextend time: ', rpextend_end-rpextend_start)
         # end = is_terminals
         # end_mask = end!=1
         step_end = time.time()
@@ -150,18 +157,28 @@ for episode in range(num_episodes):
         # mean_reward = torch.mean(rewards, dim=1)
         # cumulative_reward += mean_reward # average reward across all robots in one env
         # cumulative_reward_logged = cumulative_reward.sum()
-        mean_reward = torch.mean(rewards)
-        cumulative_reward += mean_reward
-        step_count += 1-end 
+        # instantaneous rewards
+        instantaneous_mean_reward = torch.mean(rewards)
+        instantaneous_max_reward = torch.max(rewards)
+        instantaneous_min_reward = torch.min(rewards)
+        # cumulative rewards
+        cumulative_reward += rewards
+        cumulative_mean_reward = torch.mean(cumulative_reward)
+        cumulative_max_reward = torch.max(cumulative_reward)
+        cumulative_min_reward = torch.min(cumulative_reward)
+        # step_count += 1-end 
+        step_count += 1
         # Optionally print out step information
         # print(f"Episode: {episode}, Step: {actions}, Reward: {rewards}")
         
     if env._task.mode == 'normal':
         """add scaler across all tasks with different num_envs"""
         # writer = SummaryWriter(log_dir=log_dir)
-        writer.add_scalar('cumulative_reward', cumulative_reward, episode)
+        writer.add_scalar('cumulative_max_reward', cumulative_max_reward, episode)
+        writer.add_scalar('cumulative_mean_reward', cumulative_mean_reward, episode)
+        writer.add_scalar('cumulative_min_reward', cumulative_min_reward, episode)
         # should be :
-        writer.add_scalar('average_cumulative_reward', cumulative_reward/step_count.sum(), episode) # average reward across all robots in one env
+        # writer.add_scalar('average_cumulative_reward', cumulative_reward/step_count.sum(), episode) # average reward across all robots in one env
         writer.add_scalar('success', env._task.success.sum(), episode) # 
         """should also add scaler distinguish tasks with different num_envs"""
 

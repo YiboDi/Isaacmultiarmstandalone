@@ -66,5 +66,5 @@ def main(directory):
     print("Max joint Config:", max_joint_config)
 
 if __name__ == "__main__":
-    directory = "/home/tp2/papers/multiarm_dataset/tests"  # Update this with your directory path
+    directory = "/home/dyb/Thesis/tests"  # Update this with your directory path
     main(directory)

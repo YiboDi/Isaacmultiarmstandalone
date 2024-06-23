@@ -25,7 +25,7 @@ from net_utils import create_lstm
 
 num_episodes = 10  # Define the number of episodes for testing
 # rather than define a number, num_episode should be up to number of tasks used as training data
-training_data = os.listdir('/home/tp2/papers/multiarm_dataset/tasks')
+training_data = os.listdir('/home/dyb/Thesis/tasks')
 num_episodes = len(training_data)*2-500
 
 env = expertSupervisionEnv()

@@ -1,5 +1,5 @@
 
 
 
-task = TaskLoader(root_dir='/home/tp2/papers/multiarm_dataset/tasks', shuffle=True)
+task = TaskLoader(root_dir='/home/dyb/Thesis/tasks', shuffle=True)
 current_task = taskloader.get_next_task()
