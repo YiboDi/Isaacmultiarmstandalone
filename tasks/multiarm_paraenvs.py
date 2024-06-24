@@ -42,6 +42,7 @@ from ur5_view_multienv import UR5MultiarmEnv
 from omni.isaac.core.objects import VisualCylinder
 import omni
 
+from omni.isaac.core.utils.types import ArticulationActions
 
 
 class MultiarmTask(BaseTask):
@@ -53,7 +54,7 @@ class MultiarmTask(BaseTask):
 
         self.taskloader = TaskLoader(root_dir='/home/dyb/Thesis/tasks', shuffle=True)
         self._num_envs = 256
-        self._env_spacing = 0
+        self._env_spacing = 5
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
 
@@ -74,7 +75,7 @@ class MultiarmTask(BaseTask):
         self.activation_radius = 100
         self.indiv_reach_target_reward = 5
         self.coorp_reach_target_reward = 10
-        self.position_tolerance = 0.35 # modify based on the experiment result
+        self.position_tolerance = 0.40 # modify based on the experiment result
         self.orientation_tolerance = 0.25
         # self.position_tolerance = 0.05 # modify based on the experiment result
         # self.orientation_tolerance = 0.05
@@ -339,7 +340,8 @@ class MultiarmTask(BaseTask):
                 tran = base_pos[:,i,:]
                 orie = base_ori[:,i,:]
                 
-                self._franka_list[i].set_world_poses(positions = tran, orientations = orie) # set base link local pose
+                self._franka_list[i].set_world_poses(positions = tran+self._env_pos, orientations = orie) # set base link local pose
+                
                 # self._franka_list[i].base_link.set_local_poses(translations = tran, orientations = orie)
                 # test
                 # pos = self._franka_list[i].get_local_poses()[0]
@@ -356,7 +358,7 @@ class MultiarmTask(BaseTask):
 
 
                 trans, orien = target_eff_pos[:,i,:], target_eff_ori[:,i,:]
-                self._target_list[i].set_world_poses(positions = trans, orientations = orien)
+                self._target_list[i].set_world_poses(positions = trans+self._env_pos, orientations = orien)
                 # test
                 # pos = self._target_list[i].get_local_poses()[0]
                 # world_pos = self._target_list[i].get_world_poses()[0]
@@ -381,11 +383,11 @@ class MultiarmTask(BaseTask):
             elif i >= self.num_agents:
                 translations = torch.zeros(self._num_envs,3, device=self._device)
                 translations[:,2] = -10
-                self._franka_list[i].set_world_poses(positions = translations)
+                self._franka_list[i].set_world_poses(positions = translations+self._env_pos)
                 # self._franka_list[i].target.set_local_poses(translations = translations)
                 # self._franka_list[i].world.set_local_poses(translations = translations) 
                 # self._franka_list[i].base_link.set_local_poses(translations = translations) 
-                self._target_list[i].set_world_poses(positions = translations)
+                self._target_list[i].set_world_poses(positions = translations+self._env_pos)
 
         self.progress_buf = 0
 
@@ -414,7 +416,10 @@ class MultiarmTask(BaseTask):
         # not certain about the indices
         # for i in range(self._num_envs):
         for i in range(self.num_agents):
-            self._franka_list[i].set_joint_position_targets(self.franka_dof_targets[:, i, :]) 
+            # self._franka_list[i].set_joint_position_targets(self.franka_dof_targets[:, i, :]) 
+            # try apply_action()
+            action = ArticulationActions(joint_positions=self.franka_dof_targets[:, i, :])
+            self._franka_list[i].apply_action(action) 
             # also set the joint position directly to the action, simulating that we have a perfect controler
             # self._franka_list[i].set_joint_positions(self.franka_dof_targets[:, i, :]) 
             # check the base poses of robots in simulation with the current_task.base_poses
@@ -793,7 +798,7 @@ class MultiarmTask(BaseTask):
         pos_rewards[:, :] = -1.0 * self.pos_delta
         # Smooth, continuous reward for aligning orientation to the target
         # ori_rewards[:, :] = torch.exp(-self.ori_delta / self.orientation_tolerance)
-        ori_rewards[:, :] = -1.0 * self.ori_delta
+        ori_rewards[:, :] = -0.5 * self.ori_delta
 
 
         
@@ -802,6 +807,7 @@ class MultiarmTask(BaseTask):
         # else:
         #     collectively_reach_targets_reward = np.zeros(self.num_agents)
         collectively_reach_targets_reward = torch.where(self.all_reach_targets() == 1, self.coorp_reach_target_reward, 0)
+        
         self.success = torch.where(collectively_reach_targets_reward == self.coorp_reach_target_reward, 1, self.success)
         self.is_terminals = torch.where(collectively_reach_targets_reward == self.coorp_reach_target_reward, 1, self.is_terminals)
 
