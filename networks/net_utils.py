@@ -4,7 +4,7 @@ from transformer import tf_policy, tf_q
 
 
 
-def create_lstm(training_config, actor_obs_dim = 47, action_dim = 6, critic_obs_dim = 47):
+def create_lstm(training_config, actor_obs_dim, action_dim, critic_obs_dim):
     policy_net = StochasticActor(
             obs_dim=actor_obs_dim,
             action_dim=action_dim,

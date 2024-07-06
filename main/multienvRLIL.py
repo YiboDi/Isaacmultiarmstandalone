@@ -45,16 +45,16 @@ with open(file_path, 'r') as file:
     config = json.load(file)
     training_config = config['training']
 
-network = create_lstm(training_config=training_config)
+network = create_lstm(training_config=training_config, actor_obs_dim=task._num_observation, action_dim=task._num_action, critic_obs_dim=task._num_observation)
 # print(network)
 # modify for each experiment
-experiment_name = 'SACIL0706singlerobotvelcontrtest'
+experiment_name = 'SACIL0706singlerobotvelcontr'
 
 experiment_dir = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0630singlerobot/checkpoints/ckpt_sac_lstm_00289'
+            # load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0630singlerobot/checkpoints/ckpt_sac_lstm_00289'
             )
 writer = SummaryWriter(log_dir=log_dir)
 

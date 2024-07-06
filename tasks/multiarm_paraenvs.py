@@ -53,7 +53,7 @@ class MultiarmTask(BaseTask):
         self.config = load_config(path='/home/dyb/Thesis/Isaacmultiarmstandalone/config/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/dyb/Thesis/tasks', shuffle=True)
-        self._num_envs = 1
+        self._num_envs = 256
         self._env_spacing = 3
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
@@ -82,7 +82,7 @@ class MultiarmTask(BaseTask):
 
         self.num_franka_dofs = 6
 
-        self._max_episode_length = 200
+        self._max_episode_length = 150
 
         self.dof_lower_limits = torch.tensor([-2 * pi, -2 * pi, -pi, -2 * pi, -2 * pi, -2 * pi], device=self._device)
         self.dof_upper_limits = torch.tensor([2 * pi, 2 * pi, pi, 2 * pi, 2 * pi, 2 * pi], device=self._device)
@@ -117,7 +117,7 @@ class MultiarmTask(BaseTask):
         self.min_joint = torch.tensor([-6.2, -3.3, -1.8, -4.3, -4.7, -4.4], device=self._device)
 
         self.fix_agent_num = True
-        self.fixed_agent_num = 4
+        self.fixed_agent_num = 1
 
         self.dof_speed_scales = self.dof_lower_limits
         # self.action_scale = 7.5
@@ -567,7 +567,7 @@ class MultiarmTask(BaseTask):
         dof_pos = dof_pos.view(self._num_envs, 4, 6)[:,:self.num_agents,:].to(self._device)
         self.dof_pos = dof_pos # self.dof_pos is the real joint position of the robot 
 
-        dof_vel = self.frankaview.get_joint_velocites(clone=False)
+        dof_vel = self.frankaview.get_joint_velocities(clone=False)
         dof_vel = dof_vel.view(self._num_envs, 4, 6)[:,:self.num_agents,:].to(self._device)
         self.dof_vel = dof_vel
         
