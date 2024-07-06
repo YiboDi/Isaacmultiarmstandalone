@@ -62,14 +62,11 @@ class UR5(Robot):
             "wrist_2_link/wrist_3_joint"
         ]
 
-        # drive_type = ["angular"] * 7 + ["linear"] * 2
+
         drive_type = ["angular"] * 6
-        # default_dof_pos = [math.degrees(x) for x in [0.0, -1.0, 0.0, -2.2, 0.0, 2.4, 0.8]] + [0.02, 0.02]
-        stiffness = [400*np.pi/180] * 6
-        # damping = [80*np.pi/180] * 6
+        # when position control, stiffness should be large while damping small
+        stiffness = [1000*np.pi/180] * 6
         damping = [160*np.pi/180] * 6
-        # stiffness = [0] * 6
-        # damping = [0] * 6
         max_force = [150, 150, 150, 28, 28, 28] # from ur5.py
         max_velocity = [math.degrees(x) for x in [3.15, 3.15, 3.15, 3.2, 3.2, 3.2]] # radians to degrees
         default_dof_pos = self._default_dof_pos

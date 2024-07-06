@@ -18,8 +18,8 @@ class expertmultiEnv(VecEnvBase):
         # self.mode = self._task.mode
         self.mode = None
         self.expert_root_dir = '/home/dyb/Thesis/expert/'
-        self.max_action = 1.0
-        self.joint_tolerance = 0.4
+        self.max_delta_js = 0.1
+        self.joint_tolerance = 0.2
 
         self.failed_count = 0
 
@@ -186,7 +186,7 @@ class expertmultiEnv(VecEnvBase):
 
 
             if target_wp_idx < len(expert_waypoints) - 1 and \
-                all([delta_j < self.max_action for delta_j in abs(target_dir_j)])\
+                all([delta_j < self.max_delta_js for delta_j in abs(target_dir_j)])\
                     and angle(next_dir_j, target_dir_j) < self.joint_tolerance:
                 target_wp_idx += 1
             else:
@@ -230,7 +230,7 @@ class expertmultiEnv(VecEnvBase):
             target_j = target_j.squeeze(1)
 
             cond1 = target_wp_idx < self.expert_waypoints.shape[1] - 1
-            cond2 = torch.all(torch.abs(target_j - curr_js) < self.max_action, dim=-1).squeeze()
+            cond2 = torch.all(torch.abs(target_j - curr_js) < self.max_delta_js, dim=-1).squeeze()
             # cond2 = torch.all(cond2, dim=-1).squeeze()
             cond2 = torch.all(cond2, dim=-1)
             cond = cond1 & cond2
@@ -238,8 +238,11 @@ class expertmultiEnv(VecEnvBase):
                 break
             target_wp_idx = torch.where(cond, target_wp_idx+1, target_wp_idx)
 
-        actions = target_j #[num_envs, num_agents, 6]
-        actions = 2*(actions - self.min_joint) / (self.max_joint - self.min_joint) - 1 #[num_envs, num_agents, 6]
+        if self._task.drive == 'position':
+            actions = target_j #[num_envs, num_agents, 6]
+            actions = 2*(actions - self.min_joint) / (self.max_joint - self.min_joint) - 1 #[num_envs, num_agents, 6]
+        if self._task.drive == 'velocity':
+            actions = (target_j-curr_js)/(self._task.dof_speed_scales * self._task.dt * self._task.action_scale)
 
 
         return actions.clone()

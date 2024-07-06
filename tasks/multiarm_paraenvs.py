@@ -53,8 +53,8 @@ class MultiarmTask(BaseTask):
         self.config = load_config(path='/home/dyb/Thesis/Isaacmultiarmstandalone/config/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/dyb/Thesis/tasks', shuffle=True)
-        self._num_envs = 256
-        self._env_spacing = 5
+        self._num_envs = 1
+        self._env_spacing = 3
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
 
@@ -69,20 +69,20 @@ class MultiarmTask(BaseTask):
 
         self._device = "cuda"
 
-        self.collision_penalty = -15
+        self.collision_penalty = -10
         # self.delta_pos_reward = 0
         # self.delta_ori_reward = 0
         self.activation_radius = 100
         self.indiv_reach_target_reward = 5
         self.coorp_reach_target_reward = 10
-        self.position_tolerance = 0.40 # modify based on the experiment result
-        self.orientation_tolerance = 0.25
-        # self.position_tolerance = 0.05 # modify based on the experiment result
-        # self.orientation_tolerance = 0.05
+        # self.position_tolerance = 0.40 # modify based on the experiment result
+        # self.orientation_tolerance = 0.25
+        self.position_tolerance = 0.06 # modify based on the experiment result
+        self.orientation_tolerance = 0.01
 
         self.num_franka_dofs = 6
 
-        self._max_episode_length = 150
+        self._max_episode_length = 200
 
         self.dof_lower_limits = torch.tensor([-2 * pi, -2 * pi, -pi, -2 * pi, -2 * pi, -2 * pi], device=self._device)
         self.dof_upper_limits = torch.tensor([2 * pi, 2 * pi, pi, 2 * pi, 2 * pi, 2 * pi], device=self._device)
@@ -91,7 +91,11 @@ class MultiarmTask(BaseTask):
 
         self.max_velocity = torch.tensor([3.15, 3.15, 3.15, 3.2, 3.2, 3.2], device=self._device) # true for real ur5
 
-        self._num_observation = 47 #107, modified to 47 without link position
+        self.drive = "velocity"
+        if self.drive == 'velocity':
+            self._num_observation = 59 #107, modified to 47 without link position, modify to 47+6(joint_velocity) =53 
+        elif self.drive == 'position':
+            self._num_observation = 47
         # for item in self.config['training']['observations']['items']:
         #     self._num_observation += item['dimensions'] * (item['history'] + 1)
         self._num_action = 6 # 6 joint on ur5
@@ -112,7 +116,12 @@ class MultiarmTask(BaseTask):
         self.max_joint = torch.tensor([3.6, 0.1, 2.9, 3.1, 4.0, 4.2], device=self._device)
         self.min_joint = torch.tensor([-6.2, -3.3, -1.8, -4.3, -4.7, -4.4], device=self._device)
 
-        self.single_agent = False
+        self.fix_agent_num = True
+        self.fixed_agent_num = 4
+
+        self.dof_speed_scales = self.dof_lower_limits
+        # self.action_scale = 7.5
+        self.action_scale = 1.0
 
         
         BaseTask.__init__(self, name=name, offset=offset)
@@ -240,7 +249,7 @@ class MultiarmTask(BaseTask):
     def set_initial_camera_params(self, camera_position=[5, 5, 2], camera_target=[0, 0, 0]):
         set_camera_view(eye=camera_position, target=camera_target, camera_prim_path="/OmniverseKit_Persp")
 
-    def update_tasks(self, single_agent):
+    def update_tasks(self, fix_agent_num, fixed_agent_num):
         if self.mode == 'supervision':
             self.mode = 'normal'
             self.current_tasks = []
@@ -250,8 +259,8 @@ class MultiarmTask(BaseTask):
                 #     current_task = self.taskloader.get_next_task()
                 # self.current_tasks.append(current_task)
                 current_task = self.taskloader.get_next_task()
-                if single_agent:
-                    while len(current_task.start_config) != 1: # test only environments with single robot
+                if fix_agent_num:
+                    while len(current_task.start_config) != fixed_agent_num: # test only environments with single robot
                         current_task = self.taskloader.get_next_task()
                 else:
                     while i != 0 and len(current_task.start_config) != len(self.current_tasks[0].start_config):
@@ -279,7 +288,7 @@ class MultiarmTask(BaseTask):
         """
 
         #updata tasks list
-        self.update_tasks(self.single_agent)
+        self.update_tasks(self.fix_agent_num, self.fixed_agent_num)
         self.num_agents=len(self.current_tasks[0].start_config)
         
         self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_agents, self._num_action))
@@ -398,7 +407,7 @@ class MultiarmTask(BaseTask):
         actions = actions.to(self._device)
         # set the actions in terminal envs to be 0s, and didn't add the data from terminal envs into replay_buffer
         # convert self.is_terminals into a torch.bool tensor 
-        actions = torch.where((self.is_terminals==1).unsqueeze(-1).unsqueeze(-1), torch.zeros_like(actions), actions)
+        # actions = torch.where((self.is_terminals==1).unsqueeze(-1).unsqueeze(-1), torch.zeros_like(actions), actions)
 
         # scaled_action should be action in (-1,+1) times max_velocity divided by simulation frequency
         # the following fomular should be thought over, the relationship with self.dt
@@ -407,21 +416,26 @@ class MultiarmTask(BaseTask):
         # targets = self.franka_dof_targets + scaled_action 
         # try directly set the scaled action to robot instead of accumulation
         # targets = scaled_action
-
+        if self.drive == 'position':
         # scale the actions from (-1,1) back to joint range
-        actions = (actions+1)/2 * (self.max_joint - self.min_joint) + self.min_joint
+            actions = (actions+1)/2 * (self.max_joint - self.min_joint) + self.min_joint
 
-        targets = actions
+            targets = actions
+
+        if self.drive == 'velocity':
+            targets = self.franka_dof_targets + self.dof_speed_scales * self.dt * actions * self.action_scale # self.dof_speed_scales = self.dof_lower_limits
+            self.franka_dof_targets[:] = tensor_clamp(targets, self.dof_lower_limits, self.dof_upper_limits)
+
         self.franka_dof_targets[:] = tensor_clamp(targets, self.dof_lower_limits, self.dof_upper_limits)
         # not certain about the indices
         # for i in range(self._num_envs):
         for i in range(self.num_agents):
             # self._franka_list[i].set_joint_position_targets(self.franka_dof_targets[:, i, :]) 
-            # try apply_action()
-            action = ArticulationActions(joint_positions=self.franka_dof_targets[:, i, :])
-            self._franka_list[i].apply_action(action) 
+            # try apply_action(), same to set_joint_positions
+            # action = ArticulationActions(joint_positions=self.franka_dof_targets[:, i, :])
+            # self._franka_list[i].apply_action(action) 
             # also set the joint position directly to the action, simulating that we have a perfect controler
-            # self._franka_list[i].set_joint_positions(self.franka_dof_targets[:, i, :]) 
+            self._franka_list[i].set_joint_positions(self.franka_dof_targets[:, i, :]) 
             # check the base poses of robots in simulation with the current_task.base_poses
             # print(str(self._franka_list[i].get_local_poses()) + 'and the configurations:')
             # for current_task in self.current_tasks:
@@ -552,6 +566,10 @@ class MultiarmTask(BaseTask):
         dof_pos = self.frankaview.get_joint_positions(clone=False)
         dof_pos = dof_pos.view(self._num_envs, 4, 6)[:,:self.num_agents,:].to(self._device)
         self.dof_pos = dof_pos # self.dof_pos is the real joint position of the robot 
+
+        dof_vel = self.frankaview.get_joint_velocites(clone=False)
+        dof_vel = dof_vel.view(self._num_envs, 4, 6)[:,:self.num_agents,:].to(self._device)
+        self.dof_vel = dof_vel
         
         self.ee_pos, self.ee_rot = self.frankaview.ee_link.get_world_poses(clone=False)
         self.ee_pos = self.ee_pos.view(self._num_envs, 4, 3)[:,:self.num_agents,:].to(self._device)
@@ -565,6 +583,7 @@ class MultiarmTask(BaseTask):
         dof_pos = 2*(dof_pos - self.min_joint)/(self.max_joint - self.min_joint) - 1
 
         # self.dof_pos = dof_pos
+
 
         if self.progress_buf <= 1:
 
@@ -587,29 +606,51 @@ class MultiarmTask(BaseTask):
             target_eff_pose = torch.cat([target_eff_pose, target_eff_pose], dim=-1) # observation contains historical frame of target_eff_pose
 
             # normalization
-
-            
-            self.ob[:, :, 0:6] = dof_pos # joint_position
-            self.ob[:, :, 6:12] = dof_pos 
-            self.ob[:, :, 12:15] = self.ee_pos # world pos, need to transpose to pos to env
-            self.ob[:, :, 15:19] = self.ee_rot
-            self.ob[:, :, 19:22] = self.ee_pos
-            self.ob[:, :, 22:26] = self.ee_rot
-            self.ob[:, :, 26:40] = target_eff_pose # 7*2 # local pos to the env
-            # self.ob[:, :, 40:70] = link_position # should get world pos and transfer to env related pos
-            # self.ob[:, :, 70:100] = link_position
-            self.ob[:, :, 40:47] = base_pose
+            if self.drive == "position":
+                self.ob[:, :, 0:6] = dof_pos # joint_position
+                self.ob[:, :, 6:12] = dof_pos 
+                self.ob[:, :, 12:15] = self.ee_pos # world pos, need to transpose to pos to env
+                self.ob[:, :, 15:19] = self.ee_rot
+                self.ob[:, :, 19:22] = self.ee_pos
+                self.ob[:, :, 22:26] = self.ee_rot
+                self.ob[:, :, 26:40] = target_eff_pose # 7*2 # local pos to the env
+                # self.ob[:, :, 40:70] = link_position # should get world pos and transfer to env related pos
+                # self.ob[:, :, 70:100] = link_position
+                self.ob[:, :, 40:47] = base_pose
+            elif self.drive == "velocity":
+                self.ob[:, :, 0:6] = dof_pos # joint_position
+                self.ob[:, :, 6:12] = dof_pos 
+                self.ob[:, :, 12:18] = dof_vel
+                self.ob[:, :, 18:24] = dof_vel
+                self.ob[:, :, 24:27] = self.ee_pos # world pos, need to transpose to pos to env
+                self.ob[:, :, 27:31] = self.ee_rot
+                self.ob[:, :, 31:34] = self.ee_pos
+                self.ob[:, :, 34:38] = self.ee_rot
+                self.ob[:, :, 38:52] = target_eff_pose # 7*2 # local pos to the env
+                # self.ob[:, :, 40:70] = link_position # should get world pos and transfer to env related pos
+                # self.ob[:, :, 70:100] = link_position
+                self.ob[:, :, 52:59] = base_pose
 
         else:
-            self.ob[:, :, 0:6] = self.ob[:, :, 6:12]
-            self.ob[:, :, 6:12] = dof_pos
-            self.ob[:, :, 12:15] = self.ob[:, :, 19:22]
-            self.ob[:, :, 15:19] = self.ob[:, :, 22:26]
-            self.ob[:, :, 19:22] = self.ee_pos
-            self.ob[:, :, 22:26] = self.ee_rot
-            # self.ob[:, :, 26:40] = target_eff_pose # 7*2
-            # self.ob[:, :, 40:70] = self.ob[:, :, 70:100]
-            # self.ob[:, :, 70:100] = link_position
+            if self.drive == 'position':
+                self.ob[:, :, 0:6] = self.ob[:, :, 6:12]
+                self.ob[:, :, 6:12] = dof_pos
+                self.ob[:, :, 12:15] = self.ob[:, :, 19:22]
+                self.ob[:, :, 15:19] = self.ob[:, :, 22:26]
+                self.ob[:, :, 19:22] = self.ee_pos
+                self.ob[:, :, 22:26] = self.ee_rot
+                # self.ob[:, :, 26:40] = target_eff_pose # 7*2
+                # self.ob[:, :, 40:70] = self.ob[:, :, 70:100]
+                # self.ob[:, :, 70:100] = link_position
+            elif self.drive == 'velocity':
+                self.ob[:, :, 0:6] = self.ob[:, :, 6:12]
+                self.ob[:, :, 6:12] = dof_pos
+                self.ob[:, :, 12:18] = self.ob[:, :, 18:24]
+                self.ob[:, :, 18:24] = dof_vel
+                self.ob[:, :, 24:27] = self.ob[:, :, 31:34] # world pos, need to transpose to pos to env
+                self.ob[:, :, 27:31] = self.ob[:, :, 34:38]
+                self.ob[:, :, 31:34] = self.ee_pos
+                self.ob[:, :, 34:38] = self.ee_rot
 
         return self.ob
     
@@ -669,12 +710,14 @@ class MultiarmTask(BaseTask):
         contact_force = self.frankaview.link_for_contact.get_net_contact_forces()
         contact_force = torch.norm(contact_force, dim=-1).to(self._device)
         contact_force = contact_force.view(self._num_envs, 4, 8)[:, :self.num_agents, :]
-        self.collision = torch.where(torch.any(contact_force, dim = -1) > 0.3, 1, 0) # check if any link of robot is contacted
+        collision = torch.where(torch.any(contact_force, dim = -1) > 0.3, 1, 0) # check if any link of robot is contacted
+        self.collision = torch.where(collision == 1, 1, self.collision) # check if any link of robot is contacted
         # print('collision happens with link at path:' + str(self.frankaview.link_for_contact.prims))
         """
         set self.is_terminals to be 1 if collision happens in an env, in calculate_metrics()
         """
         # self.is_terminals = torch.where(self.collision == 1, 1, self.is_terminals)
+        return collision
 
 
 
@@ -733,8 +776,9 @@ class MultiarmTask(BaseTask):
         
         collision_penalties = torch.zeros((self._num_envs, self.num_agents), device = self._device)
         if self.progress_buf > 1:
-            self.check_collision()
-            collision_penalties = torch.where(self.collision == 1, self.collision_penalty, 0)
+            # self.check_collision()
+            collision = self.check_collision()
+            collision_penalties = torch.where(collision == 1, self.collision_penalty, 0)
             # set the is_terminal of env with collision to 1
             self.is_terminals = torch.where(self.collision.any(dim=1) == 1, 1, self.is_terminals)
             # for i, agent in enumerate(self._franka_list[0:self.num_agents]):
@@ -831,6 +875,8 @@ class MultiarmTask(BaseTask):
         reward = franka_rewards_sum
 
         return reward # reward for each robot
+    
+
 
     def is_done(self):
 
@@ -840,9 +886,12 @@ class MultiarmTask(BaseTask):
             resets = 1
             # print('end episode because of all envs success or collision')
             if torch.all(self.success == 1):
-                print('end episode because of all envs success')
+                print('end episode because of all envs succeed')
             elif torch.all(torch.any(self.collision == 1, dim=-1)):
-                print('end episode because of all envs collision')
+                print('end episode because of all envs collided')
+                if self.mode == 'supervision':
+                    print('expert make collision')
+        
             
 
         # reset when reach max steps

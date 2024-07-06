@@ -122,7 +122,7 @@ class BaseNet(nn.Module):
         return torch.squeeze(h_t, dim=0)
 
     def forward(self, input):
-        if self.sequence_input:
+        if self.sequence_input: # True
             input = self.process_sequence(input) # input = obs with shape N * 107
         return self.net(input) # self.net is mlp
 
@@ -147,7 +147,7 @@ class StochasticActor(BaseNet):
             network_config=network_config)
 
     def get_layers(self):
-        layers = super().get_layers()
+        layers = super().get_layers() # no activation function
         layers.append(nn.Tanh())
         return layers
 

@@ -30,7 +30,7 @@ training_data = os.listdir('/home/dyb/Thesis/tasks')
 num_episodes = len(training_data)*2
 
 # env = expertSupervisionEnv()
-env = expertmultiEnv(headless=True)
+env = expertmultiEnv(headless=False)
 
 # from multiarm_task import MultiarmTask
 # from multiarm_with_supervision import MultiarmSupervision
@@ -48,13 +48,13 @@ with open(file_path, 'r') as file:
 network = create_lstm(training_config=training_config)
 # print(network)
 # modify for each experiment
-experiment_name = 'SACIL0624singlerobot'
+experiment_name = 'SACIL0706singlerobotvelcontrtest'
 
 experiment_dir = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            # load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0623/checkpoints/ckpt_sac_lstm_00061'
+            load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0630singlerobot/checkpoints/ckpt_sac_lstm_00289'
             )
 writer = SummaryWriter(log_dir=log_dir)
 
