@@ -22,15 +22,17 @@ from tensorboardX import SummaryWriter
 
 
 # from BaseNet import create_network
-from net_utils import create_lstm
+from net_utils import create_lstm, create_testnet
 
 # num_episodes = 70000  # Define the number of episodes for testing
 # rather than define a number, num_episode should be up to number of tasks used as training data
 training_data = os.listdir('/home/dyb/Thesis/tasks')
 num_episodes = len(training_data)*2
+headless = True
+net = "mlp"
 
 # env = expertSupervisionEnv()
-env = expertmultiEnv(headless=False)
+env = expertmultiEnv(headless=headless)
 
 # from multiarm_task import MultiarmTask
 # from multiarm_with_supervision import MultiarmSupervision
@@ -45,16 +47,19 @@ with open(file_path, 'r') as file:
     config = json.load(file)
     training_config = config['training']
 
-network = create_lstm(training_config=training_config, actor_obs_dim=task._num_observation, action_dim=task._num_action, critic_obs_dim=task._num_observation)
+if net == "lstm":
+    network = create_lstm(training_config=training_config, actor_obs_dim=task._num_observation, action_dim=task._num_action, critic_obs_dim=task._num_observation)
+elif net == "mlp":
+    network = create_testnet(training_config=training_config, actor_obs_dim=task._num_observation, action_dim=task._num_action, critic_obs_dim=task._num_observation)
 # print(network)
 # modify for each experiment
-experiment_name = 'SACIL0706singlerobotvelcontr'
+experiment_name = 'SACIL0708singlerobotvelcontrmlp'
 
 experiment_dir = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            # load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0630singlerobot/checkpoints/ckpt_sac_lstm_00289'
+            # load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0706singlerobotvelcontr/checkpoints/ckpt_sac_lstm_00257'
             )
 writer = SummaryWriter(log_dir=log_dir)
 

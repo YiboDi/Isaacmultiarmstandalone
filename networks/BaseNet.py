@@ -94,8 +94,8 @@ class BaseNet(nn.Module):
         else:
             layers = [
                 nn.Linear(
-                    mlp_input_dim,
-                    self.network_config['mlp_layers'][0]),
+                    mlp_input_dim, # 256
+                    self.network_config['mlp_layers'][0]), # 128
                 self.activation_func()
             ]
             for i in range(len(self.network_config['mlp_layers']) - 1):
@@ -106,7 +106,7 @@ class BaseNet(nn.Module):
                 layers.append(self.activation_func())
             layers.append(
                 nn.Linear(
-                    self.network_config['mlp_layers'][-1],
+                    self.network_config['mlp_layers'][-1], # 64
                     self.output_dim))
         return layers
 

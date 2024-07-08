@@ -53,7 +53,7 @@ class MultiarmTask(BaseTask):
         self.config = load_config(path='/home/dyb/Thesis/Isaacmultiarmstandalone/config/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/dyb/Thesis/tasks', shuffle=True)
-        self._num_envs = 256
+        self._num_envs = 512
         self._env_spacing = 3
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
@@ -79,6 +79,9 @@ class MultiarmTask(BaseTask):
         # self.orientation_tolerance = 0.25
         self.position_tolerance = 0.06 # modify based on the experiment result
         self.orientation_tolerance = 0.01
+        self.ee_velocities_tolerance = 0.02
+        self.joint_velocities_tolerance = 0.01
+        self.actions_tolerance = 0.001
 
         self.num_franka_dofs = 6
 
@@ -419,14 +422,13 @@ class MultiarmTask(BaseTask):
         if self.drive == 'position':
         # scale the actions from (-1,1) back to joint range
             actions = (actions+1)/2 * (self.max_joint - self.min_joint) + self.min_joint
-
             targets = actions
+            self.franka_dof_targets[:] = tensor_clamp(targets, self.dof_lower_limits, self.dof_upper_limits)
 
         if self.drive == 'velocity':
             targets = self.franka_dof_targets + self.dof_speed_scales * self.dt * actions * self.action_scale # self.dof_speed_scales = self.dof_lower_limits
             self.franka_dof_targets[:] = tensor_clamp(targets, self.dof_lower_limits, self.dof_upper_limits)
 
-        self.franka_dof_targets[:] = tensor_clamp(targets, self.dof_lower_limits, self.dof_upper_limits)
         # not certain about the indices
         # for i in range(self._num_envs):
         for i in range(self.num_agents):
@@ -748,6 +750,19 @@ class MultiarmTask(BaseTask):
         # self.ori_delta = torch.norm(self.ee_rot - self.target_eff_pose[:,:,3:], dim=-1, keepdim=True).squeeze(dim=-1)
         self.ori_delta = self.quaternion_angle_difference(self.ee_rot, self.target_eff_pose[:,:,3:])
 
+        # ee_velocities
+        # self.ee_velocities = self.frankaview.ee_link.get_velocities(clone=False)
+        # self.ee_velocities = self.ee_velocities.view(self._num_envs,4,6)[:,:self.num_agents,:].to(self._device)
+        # self.ee_velocities = torch.norm(self.ee_velocities, p=2, dim=-1)
+
+        # joints_velocities
+        # self.joint_velocities = self.frankaview.get_joint_velocities(clone=False)
+        # self.joint_velocities = self.joint_velocities.view(self._num_envs,4,6)[:,:self.num_agents,:].to(self._device)
+        # self.joint_velocities = torch.norm(self.joint_velocities, p=1, dim=-1)
+
+        # actions
+        self.actions_norm = torch.norm(self.actions, p=1, dim=-1)
+
 
         # if pos_delta < self.position_tolerance and ori_delta < self.orientation_tolerance:
         #     # the agent terminates if reaches its target
@@ -757,7 +772,11 @@ class MultiarmTask(BaseTask):
         #     return 0
             # pos_delta = torch.from_numpy(pos_delta).to(self._device).squeeze(dim=-1)
             # ori_delta = torch.from_numpy(ori_delta).to(self._device).squeeze(dim=-1)
-        indiv_reach_targets[:,:] = torch.where((self.pos_delta < self.position_tolerance) & (self.ori_delta < self.orientation_tolerance), 1, 0)
+        indiv_reach_targets[:,:] = torch.where((self.pos_delta < self.position_tolerance) & 
+                                               (self.ori_delta < self.orientation_tolerance) &
+                                            #    (self.ee_velocities < self.ee_velocities_tolerance) &
+                                            #    (self.joint_velocities < self.joint_velocities_tolerance) &
+                                               (self.actions_norm < self.actions_tolerance), 1, 0)
 
         return indiv_reach_targets
     

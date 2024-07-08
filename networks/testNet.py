@@ -2,13 +2,14 @@ import torch
 import torch.nn as nn
 from torch.distributions import MultivariateNormal
 
-# input tensor(4*107,)
 class testpolicy(nn.Module):
-    def __init__(self):
+    def __init__(self, obs_dim, action_dim):
         super().__init__()
+        self.obs_dim = obs_dim
+        self.action_dim = action_dim
         self.flatten = nn.Flatten(start_dim=1)
         self.feature_extractor = nn.Sequential(
-            nn.Linear(4*107, 256),
+            nn.Linear(self.obs_dim, 256),
             nn.Tanh()
         )
         self.mlp = nn.Sequential(
@@ -18,10 +19,10 @@ class testpolicy(nn.Module):
             nn.Tanh(),
             nn.Linear(128, 64),
             nn.Tanh(),
-            nn.Linear(64, 12),
-            nn.Tanh()
+            nn.Linear(64, self.action_dim*2),
+            # nn.Tanh()
         )
-    def forward(self, obs, deterministic, reparametrize, return_dist = False):
+    def forward(self, obs, deterministic=True, reparametrize=False, return_dist = False):
         actions = None
         action_logprobs = None
         obs = self.flatten(obs)
@@ -65,20 +66,20 @@ class testpolicy(nn.Module):
                 means, variances))
     
 class testq(nn.Module):
-    def __init__(self):
+    def __init__(self, obs_dim, action_dim):
         super().__init__()
         self.flatten = nn.Flatten(start_dim=1)
         self.feature_extractor = nn.Sequential(
-            nn.Linear(4*107, 256),
+            nn.Linear(obs_dim, 256),
             nn.Tanh()
         )
         self.mlp = nn.Sequential(
-            nn.Linear(256+6, 128),
+            nn.Linear(256+action_dim, 128),
             nn.Tanh(),
             nn.Linear(128, 64),
             nn.Tanh(),
             nn.Linear(64, 1),
-            nn.Tanh()
+            # nn.Tanh()
         )
     def forward(self, obs, actions):
         obs = self.flatten(obs)

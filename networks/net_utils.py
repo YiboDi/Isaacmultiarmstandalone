@@ -32,18 +32,18 @@ def create_lstm(training_config, actor_obs_dim, action_dim, critic_obs_dim):
 
     return network
 
-def create_testnet(actor_obs_dim = 47, action_dim = 6, critic_obs_dim = 47):
+def create_testnet(training_config, actor_obs_dim, action_dim, critic_obs_dim):
     policy_net = testpolicy(
-        # obs_dim=actor_obs_dim,
-        # action_dim=action_dim,
+        obs_dim=actor_obs_dim,
+        action_dim=action_dim,
                 ).to('cuda')
     Q1 = testq(
-        # obs_dim=critic_obs_dim,
-        #        action_dim=action_dim
+        obs_dim=critic_obs_dim,
+        action_dim=action_dim
                 ).to('cuda')
     Q2 = testq(
-        # obs_dim=critic_obs_dim,
-        #        action_dim=action_dim
+        obs_dim=critic_obs_dim,
+        action_dim=action_dim
                 ).to('cuda')
     network = {
         'policy':policy_net,
