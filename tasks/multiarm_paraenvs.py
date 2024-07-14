@@ -46,14 +46,13 @@ from omni.isaac.core.utils.types import ArticulationActions
 
 
 class MultiarmTask(BaseTask):
-    def __init__(self, name, offset=None, env=None) -> None:
-        self.mode = 'supervision'
+    def __init__(self, name, offset=None, env=None, num_envs=256, expert_integration=True) -> None:
         self._env = env
 
         self.config = load_config(path='/home/dyb/Thesis/Isaacmultiarmstandalone/config/default.json')
 
         self.taskloader = TaskLoader(root_dir='/home/dyb/Thesis/tasks', shuffle=True)
-        self._num_envs = 512
+        self._num_envs = num_envs
         self._env_spacing = 3
 
         self.dt = 1/60 # difference in time between two consecutive states or updates
@@ -125,6 +124,11 @@ class MultiarmTask(BaseTask):
         self.dof_speed_scales = self.dof_lower_limits
         # self.action_scale = 7.5
         self.action_scale = 1.0
+        self.expert_integration = expert_integration
+        if self.expert_integration == True:
+            self.mode = 'supervision'
+        elif self.expert_integration == False:
+            self.mode = 'normal'
 
         
         BaseTask.__init__(self, name=name, offset=offset)
@@ -253,14 +257,25 @@ class MultiarmTask(BaseTask):
         set_camera_view(eye=camera_position, target=camera_target, camera_prim_path="/OmniverseKit_Persp")
 
     def update_tasks(self, fix_agent_num, fixed_agent_num):
-        if self.mode == 'supervision':
-            self.mode = 'normal'
+        if self.expert_integration == True:
+            if self.mode == 'supervision':
+                self.mode = 'normal'
+                self.current_tasks = []
+                for i in range(self._num_envs):
+                    current_task = self.taskloader.get_next_task()
+                    if fix_agent_num:
+                        while len(current_task.start_config) != fixed_agent_num: # test only environments with single robot
+                            current_task = self.taskloader.get_next_task()
+                    else:
+                        while i != 0 and len(current_task.start_config) != len(self.current_tasks[0].start_config):
+                            current_task = self.taskloader.get_next_task()
+                    self.current_tasks.append(current_task)
+            # no need to change to 'supervision' when all success
+            elif self.mode == 'normal':
+                self.mode = 'supervision'
+        elif self.expert_integration == False:
             self.current_tasks = []
             for i in range(self._num_envs):
-                # current_task = self.taskloader.get_next_task()
-                # while i != 0 and len(current_task.start_config) != len(self.current_tasks[0].start_config):
-                #     current_task = self.taskloader.get_next_task()
-                # self.current_tasks.append(current_task)
                 current_task = self.taskloader.get_next_task()
                 if fix_agent_num:
                     while len(current_task.start_config) != fixed_agent_num: # test only environments with single robot
@@ -269,9 +284,7 @@ class MultiarmTask(BaseTask):
                     while i != 0 and len(current_task.start_config) != len(self.current_tasks[0].start_config):
                         current_task = self.taskloader.get_next_task()
                 self.current_tasks.append(current_task)
-        # no need to change to 'supervision' when all success
-        elif self.mode == 'normal':
-            self.mode = 'supervision'
+    
 
 
     def reset(self):
@@ -897,8 +910,8 @@ class MultiarmTask(BaseTask):
     
 
 
-    def is_done(self):
-
+    def is_done(self): 
+        # reset all envs when all envs are is_terminals
         resets = 0
         # all envs either success or collide
         if torch.all(self.is_terminals == 1):

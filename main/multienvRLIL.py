@@ -28,7 +28,17 @@ from net_utils import create_lstm, create_testnet
 # rather than define a number, num_episode should be up to number of tasks used as training data
 training_data = os.listdir('/home/dyb/Thesis/tasks')
 num_episodes = len(training_data)*2
-headless = True
+
+train = True
+if train == True:
+    headless = True
+    num_envs = 512
+    load_path = None
+elif train == False:
+    headless = False
+    num_envs = 1
+    load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0708singlerobotvelcontrmlp/checkpoints/ckpt_sac_lstm_00458'
+expert_integration = False
 net = "mlp"
 
 # env = expertSupervisionEnv()
@@ -38,7 +48,7 @@ env = expertmultiEnv(headless=headless)
 # from multiarm_with_supervision import MultiarmSupervision
 # task = MultiarmSupervision(name="MultiarmSupervision")
 from multiarm_paraenvs import MultiarmTask
-task = MultiarmTask(name="MultiarmParaenvs", env=env)
+task = MultiarmTask(name="MultiarmParaenvs", env=env, num_envs=num_envs, expert_integration=expert_integration)
 env.set_task(task, backend = 'torch')
 
 file_path = '/home/dyb/Thesis/Isaacmultiarmstandalone/config/default.json'
@@ -53,13 +63,13 @@ elif net == "mlp":
     network = create_testnet(training_config=training_config, actor_obs_dim=task._num_observation, action_dim=task._num_action, critic_obs_dim=task._num_observation)
 # print(network)
 # modify for each experiment
-experiment_name = 'SACIL0708singlerobotvelcontrmlp'
+experiment_name = 'SACIL0714singlerobotvelcontrmlptest'
 
 experiment_dir = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            # load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0706singlerobotvelcontr/checkpoints/ckpt_sac_lstm_00257'
+            load_path = load_path
             )
 writer = SummaryWriter(log_dir=log_dir)
 
@@ -149,7 +159,7 @@ for episode in range(num_episodes):
         'actions' : [act_agent for act_agents in actions for act_agent in act_agents], # here 6
         'rewards' : [rew_agent for rew_agents in rewards for rew_agent in rew_agents ], # here 1
         'next_observations' : [next_obs_agent for next_obs_agents in next_observations for next_obs_agent in next_obs_agents ],
-        'is_terminal' : [done_agent for done_agents in dones for done_agent in done_agents ] # self.is_terminal has shape of [num_envs], representing if terminal for each env. but here should use done with shape of [num_envs,num_agents]
+        'done' : [done_agent for done_agents in dones for done_agent in done_agents ] # self.is_terminal has shape of [num_envs], representing if terminal for each env. but here should use done with shape of [num_envs,num_agents]
         }
         model.replay_buffer.extend(data_dic) # rewards are not torch tensor, but when using in training, loaded as torch tensor
         # rpextend_end = time.time()

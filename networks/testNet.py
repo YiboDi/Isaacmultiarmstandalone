@@ -22,7 +22,7 @@ class testpolicy(nn.Module):
             nn.Linear(64, self.action_dim*2),
             # nn.Tanh()
         )
-    def forward(self, obs, deterministic=True, reparametrize=False, return_dist = False):
+    def forward(self, obs, deterministic=False, reparametrize=True, return_dist = False):
         actions = None
         action_logprobs = None
         obs = self.flatten(obs)
