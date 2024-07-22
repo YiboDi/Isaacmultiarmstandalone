@@ -41,8 +41,8 @@ default_physx_params = {
     "max_depenetration_velocity": 100.0,
 
     ### Per-shape settings ( can override in actor_options )
-    "contact_offset": 0.02,
-    "rest_offset": 0.001
+    "contact_offset": 0.001,
+    "rest_offset": 0.0
 }
 
 default_physics_material = {

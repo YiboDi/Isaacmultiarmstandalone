@@ -32,10 +32,11 @@ def create_lstm(training_config, actor_obs_dim, action_dim, critic_obs_dim):
 
     return network
 
-def create_testnet(training_config, actor_obs_dim, action_dim, critic_obs_dim):
+def create_testnet(training_config, actor_obs_dim, action_dim, critic_obs_dim, clip_log_std=True, min_log_std=-20, max_log_std=2, reduction='sum'):
     policy_net = testpolicy(
         obs_dim=actor_obs_dim,
         action_dim=action_dim,
+        clip_log_std=clip_log_std, min_log_std=min_log_std, max_log_std=max_log_std, reduction=reduction
                 ).to('cuda')
     Q1 = testq(
         obs_dim=critic_obs_dim,

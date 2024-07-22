@@ -24,6 +24,7 @@ class SAC():
                  load_path = None,
                 #  log_dir = None,
                 #  checkpoint_dir = None,
+                 train = True,
                  experiment_dir = None,
                  deterministic = False,
                 #  hyperparameters
@@ -35,6 +36,7 @@ class SAC():
         self.log_dir = experiment_dir + '/logs/Training'
         self.checkpointsdir = experiment_dir + '/checkpoints'
         self.experiment_dir = experiment_dir
+        self.update = train
 
         self.device = 'cuda'
         # self.writer = SummaryWriter(log_dir = '/home/dyb/Thesis/Isaacmultiarmstandalone/logs/Training')
@@ -163,7 +165,7 @@ class SAC():
         #     normal = Normal(mean, std) # distribution
         #     action = normal.sample()
         
-        if self.replay_buffer is not None and len(self.replay_buffer) >= self.warmup_steps and self.replay_buffer.freshness > self.minimum_replay_buffer_freshness: 
+        if self.update and self.replay_buffer is not None and len(self.replay_buffer) >= self.warmup_steps and self.replay_buffer.freshness > self.minimum_replay_buffer_freshness: 
             self.train()
             self.last_train_size = len(self.replay_buffer)
             # if self.last_train_size == self.replay_buffer_capacity:
@@ -271,8 +273,9 @@ class SAC():
                 obs=next_obs,
                 deterministic=False,
                 reparametrize=self.reparametrize)
-            next_obs_action_logprobs = torch.unsqueeze(
-                next_obs_action_logprobs, dim=1)
+            # next_obs_action_logprobs = torch.unsqueeze(
+            #     next_obs_action_logprobs, dim=1)
+            # what the fuck is above?
             target_q_values = torch.min(
                 self.Q1_target(critic_next_obs, new_next_obs_action *
                             self.action_scaling),

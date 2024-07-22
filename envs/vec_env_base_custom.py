@@ -167,7 +167,7 @@ class VecEnvBase(gym.Env):
         print('worldstep_time: ', worldstep_end - worldstep_start)
 
         self.sim_frame_count += 1
-
+        # post_physics_step
         observations = self._task.get_observations()
         rewards = self._task.calculate_metrics() # also update self.done
         resets = self._task.is_done() # self.reset_buf change if some env meet the conditions

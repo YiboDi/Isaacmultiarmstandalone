@@ -29,16 +29,17 @@ from net_utils import create_lstm, create_testnet
 training_data = os.listdir('/home/dyb/Thesis/tasks')
 num_episodes = len(training_data)*2
 
-train = True
+train = False
+expert_integration = True
 if train == True:
     headless = True
     num_envs = 512
     load_path = None
 elif train == False:
     headless = False
-    num_envs = 1
-    load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0708singlerobotvelcontrmlp/checkpoints/ckpt_sac_lstm_00458'
-expert_integration = False
+    num_envs = 3
+    load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0720singlerobotvelcontrmlplogprob/checkpoints/ckpt_sac_lstm_00122'
+    # expert_integration = False
 net = "mlp"
 
 # env = expertSupervisionEnv()
@@ -48,7 +49,7 @@ env = expertmultiEnv(headless=headless)
 # from multiarm_with_supervision import MultiarmSupervision
 # task = MultiarmSupervision(name="MultiarmSupervision")
 from multiarm_paraenvs import MultiarmTask
-task = MultiarmTask(name="MultiarmParaenvs", env=env, num_envs=num_envs, expert_integration=expert_integration)
+task = MultiarmTask(name="MultiarmParaenvs", env=env, num_envs=num_envs, train=train, expert_integration=expert_integration)
 env.set_task(task, backend = 'torch')
 
 file_path = '/home/dyb/Thesis/Isaacmultiarmstandalone/config/default.json'
@@ -60,16 +61,17 @@ with open(file_path, 'r') as file:
 if net == "lstm":
     network = create_lstm(training_config=training_config, actor_obs_dim=task._num_observation, action_dim=task._num_action, critic_obs_dim=task._num_observation)
 elif net == "mlp":
-    network = create_testnet(training_config=training_config, actor_obs_dim=task._num_observation, action_dim=task._num_action, critic_obs_dim=task._num_observation)
+    network = create_testnet(training_config=training_config, actor_obs_dim=task._num_observation, action_dim=task._num_action, critic_obs_dim=task._num_observation, clip_log_std=True, reduction='sum')
 # print(network)
 # modify for each experiment
-experiment_name = 'SACIL0714singlerobotvelcontrmlptest'
+experiment_name = 'SACIL0721singlerobotvelcontrmlplogprobmodtest'
 
 experiment_dir = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
 # checkpoint_dir = experiment_dir + '/checkpoints'
 model = SAC(network=network, experiment_dir=experiment_dir,
-            load_path = load_path
+            load_path = load_path,
+            train = train
             )
 writer = SummaryWriter(log_dir=log_dir)
 
@@ -159,7 +161,7 @@ for episode in range(num_episodes):
         'actions' : [act_agent for act_agents in actions for act_agent in act_agents], # here 6
         'rewards' : [rew_agent for rew_agents in rewards for rew_agent in rew_agents ], # here 1
         'next_observations' : [next_obs_agent for next_obs_agents in next_observations for next_obs_agent in next_obs_agents ],
-        'done' : [done_agent for done_agents in dones for done_agent in done_agents ] # self.is_terminal has shape of [num_envs], representing if terminal for each env. but here should use done with shape of [num_envs,num_agents]
+        'dones' : [done_agent for done_agents in dones for done_agent in done_agents ] # self.is_terminal has shape of [num_envs], representing if terminal for each env. but here should use done with shape of [num_envs,num_agents]
         }
         model.replay_buffer.extend(data_dic) # rewards are not torch tensor, but when using in training, loaded as torch tensor
         # rpextend_end = time.time()
@@ -189,9 +191,13 @@ for episode in range(num_episodes):
     if env._task.mode == 'normal':
         """add scaler across all tasks with different num_envs"""
         # writer = SummaryWriter(log_dir=log_dir)
+        writer.add_scalar('instantaneous_max_reward', instantaneous_max_reward, episode)
+        writer.add_scalar('instantaneous_mean_reward', instantaneous_mean_reward, episode)
+        writer.add_scalar('instantaneous_min_reward', instantaneous_min_reward, episode)
         writer.add_scalar('cumulative_max_reward', cumulative_max_reward, episode)
         writer.add_scalar('cumulative_mean_reward', cumulative_mean_reward, episode)
         writer.add_scalar('cumulative_min_reward', cumulative_min_reward, episode)
+        writer.add_scalar('mean episode length', torch.mean(step_count), episode)
         # should be :
         # writer.add_scalar('average_cumulative_reward', cumulative_reward/step_count.sum(), episode) # average reward across all robots in one env
         writer.add_scalar('success', env._task.success.sum(), episode) # 
