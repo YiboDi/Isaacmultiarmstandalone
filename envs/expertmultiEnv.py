@@ -223,6 +223,8 @@ class expertmultiEnv(VecEnvBase):
 
         target_wp_idx = next_wp_idx.clone()
 
+        self.max_delta_js = self._task.dof_speed_scales * self._task.dt * self._task.action_scale * 1.0
+
 
         while True:
             target_wp_idx_reshaped = target_wp_idx.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand(-1,1,self.expert_waypoints.shape[2], self.expert_waypoints.shape[3]) # [num_envs, max_size, num_agents, 6]
