@@ -29,8 +29,8 @@ from net_utils import create_lstm, create_testnet
 training_data = os.listdir('/home/dyb/Thesis/tasks')
 num_episodes = len(training_data)*2
 
-train = False
-expert_integration = True
+train = True
+expert_integration = False
 if train == True:
     headless = True
     num_envs = 512
@@ -38,7 +38,8 @@ if train == True:
 elif train == False:
     headless = False
     num_envs = 3
-    load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0720singlerobotvelcontrmlplogprob/checkpoints/ckpt_sac_lstm_00122'
+    # load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0720singlerobotvelcontrmlplogprob/checkpoints/ckpt_sac_lstm_00122'
+    load_path = None
     # expert_integration = False
 net = "mlp"
 
@@ -64,7 +65,7 @@ elif net == "mlp":
     network = create_testnet(training_config=training_config, actor_obs_dim=task._num_observation, action_dim=task._num_action, critic_obs_dim=task._num_observation, clip_log_std=True, reduction='sum')
 # print(network)
 # modify for each experiment
-experiment_name = 'SACIL0721singlerobotvelcontrmlplogprobmodtest'
+experiment_name = 'SACIL0722singlerobotvelcontrmlplogprobnointeg'
 
 experiment_dir = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'
