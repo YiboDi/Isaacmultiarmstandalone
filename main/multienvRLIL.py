@@ -30,7 +30,7 @@ training_data = os.listdir('/home/dyb/Thesis/tasks')
 num_episodes = len(training_data)*2
 
 train = True
-expert_integration = False
+expert_integration = True
 if train == True:
     headless = True
     num_envs = 512
@@ -65,7 +65,7 @@ elif net == "mlp":
     network = create_testnet(training_config=training_config, actor_obs_dim=task._num_observation, action_dim=task._num_action, critic_obs_dim=task._num_observation, clip_log_std=True, reduction='sum')
 # print(network)
 # modify for each experiment
-experiment_name = 'SACIL0722singlerobotvelcontrmlplogprobnointegtest'
+experiment_name = 'SACIL0728singlerobotvelcontrmlp'
 
 experiment_dir = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'

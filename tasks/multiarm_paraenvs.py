@@ -87,7 +87,7 @@ class MultiarmTask(BaseTask):
         self._max_episode_length = 150
 
         self.dof_lower_limits = torch.tensor([-2 * pi, -2 * pi, -2 * pi, -2 * pi, -2 * pi, -2 * pi], device=self._device) # true for real ur5
-        self.dof_upper_limits = torch.tensor([2 * pi, 2 * pi, -2 * pi, 2 * pi, 2 * pi, 2 * pi], device=self._device) # true for real ur5
+        self.dof_upper_limits = torch.tensor([2 * pi, 2 * pi, 2 * pi, 2 * pi, 2 * pi, 2 * pi], device=self._device) # true for real ur5
 
         self.success = torch.zeros((self._num_envs), device=self._device)
 
@@ -119,7 +119,7 @@ class MultiarmTask(BaseTask):
         self.fix_agent_num = True
         self.fixed_agent_num = 1
 
-        self.dof_speed_scales = 0.1
+        self.dof_speed_scales = 0.2
         self.action_scale = 7.5
         # self.action_scale = 1.0
         self.expert_integration = expert_integration
@@ -331,7 +331,7 @@ class MultiarmTask(BaseTask):
     def pre_physics_step(self, actions) -> None: # actions should have size of (self._num_envs, self.num_agent, 6)
 
         actions = actions.to(self._device)
-        # actions = tensor_clamp(actions, -self.clipAction, self.clipAction)
+        actions = tensor_clamp(actions, -self.clipAction, self.clipAction)
 
         if self.drive == 'position':
         # scale the actions from (-1,1) back to joint range
@@ -622,15 +622,15 @@ class MultiarmTask(BaseTask):
         # reset all envs when all envs are is_terminals
         resets = 0
         # all envs either success or collide
-        if self.train and torch.all(self.is_terminals == 1):
-            resets = 1
-            # print('end episode because of all envs success or collision')
-            if torch.all(self.success == 1):
-                print('end episode because of all envs succeed')
-            elif torch.all(torch.any(self.collision == 1, dim=-1)):
-                print('end episode because of all envs collided')
-                if self.mode == 'supervision':
-                    print('expert make collision')
+        # if not self.train and torch.all(self.is_terminals == 1):
+        #     resets = 1
+        #     # print('end episode because of all envs success or collision')
+        #     if torch.all(self.success == 1):
+        #         print('end episode because of all envs succeed')
+        #     elif torch.all(torch.any(self.collision == 1, dim=-1)):
+        #         print('end episode because of all envs collided')
+        #         if self.mode == 'supervision':
+        #             print('expert make collision')
         
             
 

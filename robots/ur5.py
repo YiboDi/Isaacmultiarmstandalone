@@ -65,7 +65,7 @@ class UR5(Robot):
 
         drive_type = ["angular"] * 6
         # when position control, stiffness should be large while damping small
-        stiffness = [400*np.pi/180] * 6
+        stiffness = [3000*np.pi/180] * 6
         damping = [160*np.pi/180] * 6
         max_force = [150, 150, 150, 28, 28, 28] # from ur5.py
         max_velocity = [math.degrees(x) for x in [3.15, 3.15, 3.15, 3.2, 3.2, 3.2]] # radians to degrees

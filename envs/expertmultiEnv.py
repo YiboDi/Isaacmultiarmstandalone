@@ -18,10 +18,12 @@ class expertmultiEnv(VecEnvBase):
         # self.mode = self._task.mode
         self.mode = None
         self.expert_root_dir = '/home/dyb/Thesis/expert/'
-        self.max_delta_js = 0.1
+        self.max_delta_js = 0.05
         self.joint_tolerance = 0.2
 
         self.failed_count = 0
+
+        self.controlInterval = 2
 
         self.max_joint = torch.tensor([3.6, 0.1, 2.9, 3.1, 4.0, 4.2], device='cuda')
         self.min_joint = torch.tensor([-6.2, -3.3, -1.8, -4.3, -4.7, -4.4], device='cuda')
@@ -46,7 +48,8 @@ class expertmultiEnv(VecEnvBase):
         print('pre_physics_time: ', prephysics_end - prephysics_start)
 
         worldstep_start = time.time()
-        self._world.step(render=self._render) # steps the physics simulation
+        for i in range(self.controlInterval):
+            self._world.step(render=self._render) # steps the physics simulation
         worldstep_end = time.time()
         print('worldstep_time: ', worldstep_end - worldstep_start)
 
@@ -223,7 +226,7 @@ class expertmultiEnv(VecEnvBase):
 
         target_wp_idx = next_wp_idx.clone()
 
-        self.max_delta_js = self._task.dof_speed_scales * self._task.dt * self._task.action_scale * 10 # the last scaler needs to be adjust
+        # self.max_delta_js = self._task.dof_speed_scales * self._task.dt * self._task.action_scale * 1.0 # the last scaler needs to be adjust
 
 
         while True:
