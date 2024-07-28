@@ -223,7 +223,7 @@ class expertmultiEnv(VecEnvBase):
 
         target_wp_idx = next_wp_idx.clone()
 
-        self.max_delta_js = self._task.dof_speed_scales * self._task.dt * self._task.action_scale * 1.0
+        self.max_delta_js = self._task.dof_speed_scales * self._task.dt * self._task.action_scale * 10 # the last scaler needs to be adjust
 
 
         while True:

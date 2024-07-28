@@ -37,8 +37,8 @@ if train == True:
     load_path = None
 elif train == False:
     headless = False
-    num_envs = 3
-    # load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0720singlerobotvelcontrmlplogprob/checkpoints/ckpt_sac_lstm_00122'
+    num_envs = 1
+    # load_path = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/SACIL0722singlerobotvelcontrmlplogprobnointeg/checkpoints/ckpt_sac_lstm_00170'
     load_path = None
     # expert_integration = False
 net = "mlp"
@@ -65,7 +65,7 @@ elif net == "mlp":
     network = create_testnet(training_config=training_config, actor_obs_dim=task._num_observation, action_dim=task._num_action, critic_obs_dim=task._num_observation, clip_log_std=True, reduction='sum')
 # print(network)
 # modify for each experiment
-experiment_name = 'SACIL0722singlerobotvelcontrmlplogprobnointeg'
+experiment_name = 'SACIL0722singlerobotvelcontrmlplogprobnointegtest'
 
 experiment_dir = '/home/dyb/Thesis/Isaacmultiarmstandalonedata/experiments/' + experiment_name
 log_dir = experiment_dir + '/logs'

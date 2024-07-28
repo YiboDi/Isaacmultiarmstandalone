@@ -260,6 +260,8 @@ class MultiarmTask(BaseTask):
 
 
         # method below involve more overhead due to the repeated tensor initializations
+
+        # start_config is the initial joint configurations
         start_config = [task.start_config for task in self.current_tasks]
         start_config = torch.tensor(start_config, device=self._device) # [num_envs, num_agents, num_dof]
         start_config_complement = torch.zeros(self._num_envs, complement, self.num_franka_dofs, device=self._device)
@@ -274,7 +276,7 @@ class MultiarmTask(BaseTask):
         Reset the franka (positions, position targets, velocities, and local pose) to the start configuration.
         """
         # shape of base_pos is (num_envs, num_agents, 3), shape of base_ori is (num_envs, num_agents, 4), same to target_eff
-
+        # robot base_position and target_eff_position
         base_pos_list_envs, base_ori_list_envs = [], []
         target_pos_list_envs, target_ori_list_envs = [], []
 
@@ -294,36 +296,42 @@ class MultiarmTask(BaseTask):
         rot_complement = torch.stack([rot_complement]*complement, dim=0)
         rot_complement = torch.stack([rot_complement]*self._num_envs, dim=0)
         # rot_complement = torch.tensor([self._num_envs, complement, 4], device=self._device)
-        base_pos = torch.tensor(base_pos_list_envs, device=self._device).view(-1, self.num_agents, 3) #[num_envs, num_agents, 3]
-        base_pos_complemented = torch.cat([base_pos, pos_complement], dim=1)
+        base_pos_e = torch.tensor(base_pos_list_envs, device=self._device).view(self._num_envs, self.num_agents, 3) #[num_envs, num_agents, 3]
+        base_pos_e_complemented = torch.cat([base_pos_e, pos_complement], dim=1)
         self.world_transform = self._env_pos.unsqueeze(1)
-        base_pos_complemented_w = base_pos_complemented + self.world_transform
-        base_ori = torch.tensor(base_ori_list_envs, device=self._device).view(-1, self.num_agents, 4)[:, :, [3, 0, 1, 2]]
+        base_pos_w_complemented = base_pos_e_complemented + self.world_transform
+        base_ori = torch.tensor(base_ori_list_envs, device=self._device).view(self._num_envs, self.num_agents, 4)[:, :, [3, 0, 1, 2]]
         base_ori_complemented = torch.cat([base_ori, rot_complement], dim=1)
-        target_eff_pos = torch.tensor(target_pos_list_envs, device=self._device).view(-1, self.num_agents, 3)
-        target_eff_pos_complemented = torch.cat([target_eff_pos, pos_complement], dim=1)
-        target_eff_pos_complemented_w = target_eff_pos_complemented + self.world_transform
-        target_eff_ori = torch.tensor(target_ori_list_envs, device=self._device).view(-1, self.num_agents, 4)[:, :, [3, 0, 1, 2]]
+        target_eff_pos_e = torch.tensor(target_pos_list_envs, device=self._device).view(self._num_envs, self.num_agents, 3)
+        target_eff_pos_e_complemented = torch.cat([target_eff_pos_e, pos_complement], dim=1)
+        target_eff_pos_w_complemented = target_eff_pos_e_complemented + self.world_transform
+        target_eff_ori = torch.tensor(target_ori_list_envs, device=self._device).view(self._num_envs, self.num_agents, 4)[:, :, [3, 0, 1, 2]]
         target_eff_ori_complemented = torch.cat([target_eff_ori, rot_complement], dim=1)
 
 
-        self.frankaview.set_world_poses(positions = base_pos_complemented_w.view(self._num_envs*4, 3), orientations = base_ori_complemented.view(self._num_envs*4, 4))
+        self.frankaview.set_world_poses(positions = base_pos_w_complemented.view(self._num_envs*4, 3), orientations = base_ori_complemented.view(self._num_envs*4, 4))
 
         self.frankaview.set_joint_positions(start_config_complemented.view(self._num_envs*4, 6))
         self.frankaview.set_joint_position_targets(start_config_complemented.view(self._num_envs*4, 6))
         self.frankaview.set_joint_velocities(dof_vel_complemented.view(self._num_envs*4, 6))
 
-        self.targetview.set_world_poses(positions = target_eff_pos_complemented_w.view(self._num_envs*4, 3), orientations = target_eff_ori_complemented.view(self._num_envs*4, 4))
+        self.targetview.set_world_poses(positions = target_eff_pos_w_complemented.view(self._num_envs*4, 3), orientations = target_eff_ori_complemented.view(self._num_envs*4, 4))
 
         self.progress_buf = 0
 
-        self.base_pos = base_pos
-        self.target_eff_pos_task = target_eff_pos
+        self.base_pos_e_task = base_pos_e
+        self.target_eff_pos_e_task = target_eff_pos_e
+
+        complement = torch.zeros(4,device=self._device) # 4
+        complement = torch.stack([complement]*self._num_envs, dim=0) # n_e, 4
+        complement = torch.cat([self._env_pos, complement],dim=1) # n_e, 7
+        complement = complement.unsqueeze(dim=1) # n_e, 1 ,7
+        self.complement = torch.cat([complement]*self.num_agents, dim=1) # n_e, n_a ,7
 
     def pre_physics_step(self, actions) -> None: # actions should have size of (self._num_envs, self.num_agent, 6)
 
         actions = actions.to(self._device)
-        actions = tensor_clamp(actions, -self.clipAction, self.clipAction)
+        # actions = tensor_clamp(actions, -self.clipAction, self.clipAction)
 
         if self.drive == 'position':
         # scale the actions from (-1,1) back to joint range
@@ -339,64 +347,74 @@ class MultiarmTask(BaseTask):
         franka_dof_targets = torch.cat([self.franka_dof_targets, torch.zeros(self._num_envs, (4-self.num_agents), self._num_action, device=self._device)], dim=1)
         self.frankaview.set_joint_position_targets(franka_dof_targets.view(self._num_envs*4, self._num_action))
 
-        self.actions = actions
+        self.actions = actions.clone()
         self.progress_buf += 1
 
 
     
     def pre_observations_nolinks(self): 
-        dof_pos = self.frankaview.get_joint_positions(clone=False)
+        dof_pos = self.frankaview.get_joint_positions() # [num_envs, 4*6]
         dof_pos = dof_pos.view(self._num_envs, 4, 6)[:,:self.num_agents,:].to(self._device)
         self.dof_pos = dof_pos # self.dof_pos is the real joint position of the robot 
         # normalization
-        dof_pos = 2*(dof_pos - self.min_joint)/(self.max_joint - self.min_joint) - 1
+        dof_pos_norm = 2*(dof_pos - self.min_joint)/(self.max_joint - self.min_joint) - 1
 
-        dof_vel = self.frankaview.get_joint_velocities(clone=False)
+        dof_vel = self.frankaview.get_joint_velocities()
         dof_vel = dof_vel.view(self._num_envs, 4, 6)[:,:self.num_agents,:].to(self._device)
         dof_vel = dof_vel * self.dof_vel_scale
         self.dof_vel = dof_vel
         
-        self.ee_pos, self.ee_rot = self.frankaview.ee_link.get_world_poses(clone=False)
-        self.ee_pos = self.ee_pos.view(self._num_envs, 4, 3)[:,:self.num_agents,:].to(self._device)
+        self.ee_pos_w, self.ee_rot = self.frankaview.ee_link.get_world_poses()
+        self.ee_pos_w = self.ee_pos_w.view(self._num_envs, 4, 3)[:,:self.num_agents,:].to(self._device)
+        self.ee_pos_e = self.ee_pos_w - self.complement[:,:,:3]
         self.ee_rot = self.ee_rot.view(self._num_envs,4,4)[:,:self.num_agents,:].to(self._device)
 
         # normalization
-        self.ee_pos_norm = 2*(self.ee_pos - self.min_ee_pos)/(self.max_ee_pos - self.min_ee_pos) - 1
+        self.ee_pos_e_norm = 2*(self.ee_pos_e - self.min_ee_pos)/(self.max_ee_pos - self.min_ee_pos) - 1
 
-        target_eff_pose = self.targetview.get_world_poses()
-        target_eff_pose = torch.cat(target_eff_pose, dim=-1).to(self._device)
-        target_eff_pose = target_eff_pose.view(self._num_envs, 4, 7)[:,:self.num_agents,:]
-        self.target_eff_pose = target_eff_pose # num_envs, num_agent, 7
-        # check if target eff has been in the correct pose
-        # print(str(self.target_eff_pos_task)+str(target_eff_pose))
-        # transform from world frame to env frame
-        complement = torch.zeros(4,device=self._device) # 4
-        complement = torch.stack([complement]*self._num_envs, dim=0) # n_e, 4
-        complement = torch.cat([self._env_pos, complement],dim=1) # n_e, 7
-        complement = complement.unsqueeze(dim=1) # n_e, 1 ,7
-        complement = torch.cat([complement]*self.num_agents, dim=1) # n_e, n_a ,7
-
-        target_eff_pose -= complement
+        # target_eff_pose = self.targetview.get_world_poses()
+        # target_eff_pose = torch.cat(target_eff_pose, dim=-1).to(self._device)
+        # target_eff_pose = target_eff_pose.view(self._num_envs, 4, 7)[:,:self.num_agents,:]
+        # self.target_eff_pose = target_eff_pose # num_envs, num_agent, 7
+        # # check if target eff has been in the correct pose
+        # # print(str(self.target_eff_pos_task)+str(target_eff_pose))
+        # # transform from world frame to env frame
+        # target_eff_pose -= self.complement
         
-        # normalization
-        target_eff_pose[:,:,:3] = 2*(target_eff_pose[:,:,:3] - self.min_ee_pos)/(self.max_ee_pos - self.min_ee_pos) - 1
-        target_eff_pose_norm = torch.cat([target_eff_pose, target_eff_pose], dim=-1) # observation contains historical frame of target_eff_pose
+        # # normalization
+        # target_eff_pose[:,:,:3] = 2*(target_eff_pose[:,:,:3] - self.min_ee_pos)/(self.max_ee_pos - self.min_ee_pos) - 1
+        # target_eff_pose_norm = torch.cat([target_eff_pose, target_eff_pose], dim=-1) # observation contains historical frame of target_eff_pose
 
         if self.progress_buf <= 1:
-
-            base_pose = self.frankaview.get_world_poses()
+            """base"""
+            base_pose_w = self.frankaview.get_world_poses()
             # # normalization
             # base_pose[0] = 2 * (base_pose[0] - self.min_base_pos)/(self.max_base_pos - self.min_base_pos) - 1
-            base_pose = torch.cat(base_pose, dim=-1).squeeze().to(self._device)
-            base_pose = base_pose.view(self._num_envs, 4, 7)[:,:self.num_agents,:]
+            base_pose_w = torch.cat(base_pose_w, dim=-1).squeeze().to(self._device)
+            base_pose_w = base_pose_w.view(self._num_envs, 4, 7)[:,:self.num_agents,:]
             # transform from world frame to env frame
-            base_pose -= complement
-            #check if reset correct
-            # print(str(self.base_pos)+str(base_pose))
-            # transform from world frame to env frame
-            
+            base_pose_e = base_pose_w - self.complement
+            # check if reset correct
+            # print(str(self.base_pos)+str(base_pose))           
             # normalization of x and y
-            base_pose[:,:,:2] = 2*(base_pose[:,:,:2] - self.min_base_pos)/(self.max_base_pos - self.min_base_pos) - 1
+            base_pose_e_norm = base_pose_e.clone()
+            base_pose_e_norm[:,:,:2] = 2*(base_pose_e[:,:,:2] - self.min_base_pos)/(self.max_base_pos - self.min_base_pos) - 1
+
+            """target_eff"""
+            target_eff_pose_w = self.targetview.get_world_poses()
+            target_eff_pose_w = torch.cat(target_eff_pose_w, dim=-1).to(self._device)
+            target_eff_pose_w = target_eff_pose_w.view(self._num_envs, 4, 7)[:,:self.num_agents,:]
+            self.target_eff_pose_w = target_eff_pose_w # num_envs, num_agent, 7
+            # check if target eff has been in the correct pose
+            # print(str(self.target_eff_pos_task)+str(target_eff_pose))
+            # transform from world frame to env frame
+            target_eff_pose_e = target_eff_pose_w - self.complement
+            self.target_eff_pose_e = target_eff_pose_e
+        
+            # normalization
+            target_eff_pose_e_norm = target_eff_pose_e.clone()
+            target_eff_pose_e_norm[:,:,:3] = 2*(target_eff_pose_e[:,:,:3] - self.min_ee_pos)/(self.max_ee_pos - self.min_ee_pos) - 1
+            target_eff_pose_e_norm_stack = torch.cat([target_eff_pose_e_norm, target_eff_pose_e_norm], dim=-1) # observation contains historical frame of target_eff_pose
 
             
 
@@ -411,16 +429,16 @@ class MultiarmTask(BaseTask):
                 self.ob[:, :, 26:40] = target_eff_pose # 7*2 # local pos to the env
                 self.ob[:, :, 40:47] = base_pose
             elif self.drive == "velocity":
-                self.ob[:, :, 0:6] = dof_pos # joint_position
-                self.ob[:, :, 6:12] = dof_pos 
-                self.ob[:, :, 12:18] = dof_vel 
-                self.ob[:, :, 18:24] = dof_vel
+                self.ob[:, :, 0:6] = dof_pos_norm.clone() # joint_position
+                self.ob[:, :, 6:12] = dof_pos_norm.clone()
+                self.ob[:, :, 12:18] = dof_vel.clone()
+                self.ob[:, :, 18:24] = dof_vel.clone()
                 # self.ob[:, :, 24:27] = self.ee_pos_norm # world pos, need to transpose to pos to env
                 # self.ob[:, :, 27:31] = self.ee_rot
                 # self.ob[:, :, 31:34] = self.ee_pos_norm
                 # self.ob[:, :, 34:38] = self.ee_rot
-                self.ob[:, :, 24:38] = target_eff_pose_norm # 7*2 # local pos to the env
-                self.ob[:, :, 38:45] = base_pose
+                self.ob[:, :, 24:38] = target_eff_pose_e_norm_stack.clone() # 7*2 # local pos to the env
+                self.ob[:, :, 38:45] = base_pose_e_norm.clone()
 
         else:
             if self.drive == 'position':
@@ -434,16 +452,17 @@ class MultiarmTask(BaseTask):
                 # self.ob[:, :, 40:70] = self.ob[:, :, 70:100]
                 # self.ob[:, :, 70:100] = link_position
             elif self.drive == 'velocity':
-                self.ob[:, :, 0:6] = self.ob[:, :, 6:12]
-                self.ob[:, :, 6:12] = dof_pos
-                self.ob[:, :, 12:18] = self.ob[:, :, 18:24]
-                self.ob[:, :, 18:24] = dof_vel
+                self.ob[:, :, 0:6] = self.ob[:, :, 6:12].clone()
+                self.ob[:, :, 6:12] = dof_pos_norm.clone()
+                self.ob[:, :, 12:18] = self.ob[:, :, 18:24].clone()
+                self.ob[:, :, 18:24] = dof_vel.clone()
                 # self.ob[:, :, 24:27] = self.ob[:, :, 31:34] # world pos, need to transpose to pos to env
                 # self.ob[:, :, 27:31] = self.ob[:, :, 34:38]
                 # self.ob[:, :, 31:34] = self.ee_pos_norm
                 # self.ob[:, :, 34:38] = self.ee_rot
-                self.ob[:, :, 24:31] = self.ob[:, :, 31:38]
-                self.ob[:, :, 31:38] = target_eff_pose_norm[:,:,:7]
+                # if with dynamic target, then reset the target_eff_pose at each time step:
+                # self.ob[:, :, 24:31] = self.ob[:, :, 31:38]
+                # self.ob[:, :, 31:38] = target_eff_pose_norm[:,:,:7]
 
         return self.ob
     
@@ -461,7 +480,7 @@ class MultiarmTask(BaseTask):
 
         self.obs = self.ob.unsqueeze(1).expand(-1,self.num_agents, -1, -1)
 
-        distance = torch.cdist(self.base_pos, self.base_pos) # self.base_pose has shape of [n_e,n_a,3], dis has shape of [n_e,n_a,n_a]
+        distance = torch.cdist(self.base_pos_e_task, self.base_pos_e_task) # self.base_pose has shape of [n_e,n_a,3], dis has shape of [n_e,n_a,n_a]
         sorted_index = distance.argsort(descending = True).to(self._device) #[n_e,n_a,n_a]
         expanded_index = sorted_index.unsqueeze(-1).expand(-1,-1, -1, self._num_observation).to(self._device) 
 
@@ -503,9 +522,9 @@ class MultiarmTask(BaseTask):
     def indiv_reach_targets(self):
         indiv_reach_targets = torch.zeros((self._num_envs, self.num_agents), device = self._device)
         # self.ee_pos and self.target_eff_pos are in world frame
-        self.pos_delta = torch.norm(self.ee_pos - self.target_eff_pose[:,:,:3], dim=-1, keepdim=True).squeeze(dim=-1)
+        self.pos_delta = torch.norm(self.ee_pos_e - self.target_eff_pose_e[:,:,:3], dim=-1, keepdim=True).squeeze(dim=-1)
 
-        self.ori_delta = self.quaternion_angle_difference(self.ee_rot, self.target_eff_pose[:,:,3:])
+        self.ori_delta = self.quaternion_angle_difference(self.ee_rot, self.target_eff_pose_e[:,:,3:])
 
         # ee_velocities
         # self.ee_velocities = self.frankaview.ee_link.get_velocities(clone=False)
